@@ -40,6 +40,8 @@ pub struct Settings {
 
     pub fixed_fps: bool, // render `fps` times per second even if nothing changes
     pub trace_logging: bool, // verbose logging, e.g. log every signal passed-through to the process
+
+    pub breakpoints: Vec<String>,
 }
 impl Default for Settings {
     fn default() -> Self { Settings {
@@ -68,6 +70,8 @@ impl Default for Settings {
 
         fixed_fps: false,
         trace_logging: false,
+
+        breakpoints: Vec::new(),
     } }
 }
 
