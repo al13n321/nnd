@@ -23,6 +23,7 @@ Additional arguments:
 --module path   - path to executable or dynamic library from which to load debug symbols; useful if the running executable is stripped and you have an unstripped version on the side; can be specified multiple times to provide multiple dynamic libraries (they'll be automatically matched by build id)
 -o   - try to get debug info from debuginfod server at https://debuginfod.elfutils.org/ ; alternatively, set environment variable DEBUGINFOD_URLS to a space-separated list of URLs to use
 --mouse full|no-hover|disabled   - mouse mode; 'no-hover' to react only to clicking and dragging, 'disabled' to disable mouse altogether; default is 'full' (if it doesn't work, check if mouse reporting is enabled in the terminal application)
+--breakpoint path:line   - set a breakpoint at the specified source file and line number (e.g. src/main.c:42); repeat the parameter to set multiple breakpoints
 --help   - show this help message; see below for more help pages
 
 Documentation chapters:
