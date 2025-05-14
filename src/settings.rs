@@ -1,4 +1,4 @@
-use crate::{*, terminal::*, common_ui::*, error::*};
+use crate::{*, terminal::*, common_ui::*, error::*, debugger::LineBreakpoint};
 use std::{collections::{HashMap, hash_map::Entry}, path::PathBuf, fmt, fmt::Write as fmtWrite, path::Path, mem, env};
 
 pub struct Settings {
@@ -41,7 +41,7 @@ pub struct Settings {
     pub fixed_fps: bool, // render `fps` times per second even if nothing changes
     pub trace_logging: bool, // verbose logging, e.g. log every signal passed-through to the process
 
-    pub breakpoints: Vec<String>,
+    pub breakpoints: Vec<LineBreakpoint>,
 }
 impl Default for Settings {
     fn default() -> Self { Settings {

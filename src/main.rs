@@ -179,8 +179,23 @@ fn main() {
             use_default_debuginfod_urls = true;
         } else if let Some(_) = parse_arg(&mut args, &mut seen_args, "--aslr", "", true, false) {
             settings.disable_aslr = false;
-        } else if let Some(s) = parse_arg(&mut args, &mut seen_args, "--breakpoint", "-b", false, true) {
-            settings.breakpoints.push(s.clone());
+        } else if let Some(s) = parse_arg(&mut args, &mut seen_args, "--breakpoint", "", false, true) {
+            // This allows the path to contain ':' characters.
+            let parts: Vec<&str> = s.rsplitn(2, ':').collect();
+            if parts.len() != 2 {
+                eprintln!("invalid --breakpoint format: '{}', expected path:line", s);
+                process::exit(1);
+            }
+            let line = match parts[0].parse::<usize>() {
+                Err(_) => {
+                    eprintln!("invalid --breakpoint line number: '{}', expected nonnegative integer", parts[0]);
+                    process::exit(1);
+                }
+                Ok(l) => l,
+            };
+            let path = parts[1].to_string();
+
+            settings.breakpoints.push(LineBreakpoint {path: path.into(), file_version: FileVersionInfo::default(), line: line, adjusted_line: None});
         } else if print_help_chapter(&args[0], &all_args[0]) {
             process::exit(0);
         } else {
@@ -429,31 +444,12 @@ fn run(settings: Settings, attach_pid: Option<pid_t>, core_dump_path: Option<Str
         render_timer.set(1, frame_ns);
     }
 
-    for breakpoint in &context.settings.breakpoints {
-        let parts: Vec<&str> = breakpoint.rsplitn(2, ':').collect();
-        if parts.len() != 2 {
-            return err!(Internal, "Unexpected breakpoint format (file:line)");
-        }
-        let line = match parts[0].parse::<usize>() {
-            Ok(l) => l,
-            Err(_) => return err!(Internal, "Unable to parse line number for breakpoint"),
-        };
-        let path = parts[1].to_string();
-
-        let lb = LineBreakpoint {path: path.into(), file_version: FileVersionInfo::default(), line: line, adjusted_line: None};
-        let mut existing_id = None;
-        for (id, breakpoint) in debugger.breakpoints.iter() {
-            if let BreakpointOn::Line(bp) = &breakpoint.on {
-                if bp.path == lb.path && bp.line == lb.line {
-                    existing_id = Some(id);
-                    break;
-                }
-            }
-        }
+    for line_breakpoint in &context.settings.breakpoints {
+        let existing_id = debugger.find_line_breakpoint_fuzzy(line_breakpoint.clone());
         if let Some(id) = existing_id {
             let _ = debugger.set_breakpoint_enabled(id, true);
         } else {
-            let _ = debugger.add_breakpoint(BreakpointOn::Line(lb.clone()));
+            let _ = debugger.add_breakpoint(BreakpointOn::Line(line_breakpoint.clone()));
         }
     }
 
@@ -523,7 +519,7 @@ fn run(settings: Settings, attach_pid: Option<pid_t>, core_dump_path: Option<Str
                 debugger.context.wake_main_thread.write(1);
             }
         }
-        
+
         if render_now {
             assert!(!pending_render);
             schedule_render = false;

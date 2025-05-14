@@ -24,6 +24,7 @@ Additional arguments:
 -o   - try to get debug info from debuginfod server at https://debuginfod.elfutils.org/ ; alternatively, set environment variable DEBUGINFOD_URLS to a space-separated list of URLs to use
 --mouse full|no-hover|disabled   - mouse mode; 'no-hover' to react only to clicking and dragging, 'disabled' to disable mouse altogether; default is 'full' (if it doesn't work, check if mouse reporting is enabled in the terminal application)
 -n name   - session name, to identify saved state like open files and breakpoints; "-" for temporary session that doesn't save state; "--" to avoid touching any files at all (at ~/.nnd/)
+--breakpoint path:line   - set a breakpoint at the specified source file and line number (e.g. src/main.c:42); repeat the parameter to set multiple breakpoints
 --help   - show this help message; see below for more help pages
 
 Documentation chapters:
