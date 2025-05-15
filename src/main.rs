@@ -445,7 +445,7 @@ fn run(settings: Settings, attach_pid: Option<pid_t>, core_dump_path: Option<Str
     }
 
     for line_breakpoint in &context.settings.breakpoints {
-        let existing_id = debugger.find_line_breakpoint_fuzzy(line_breakpoint.clone());
+        let existing_id = debugger.find_line_breakpoint_fuzzy(&line_breakpoint);
         if let Some(id) = existing_id {
             let _ = debugger.set_breakpoint_enabled(id, true);
         } else {

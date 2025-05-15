@@ -3716,40 +3716,40 @@ impl CodeWindow {
             return;
         }
         ui.should_redraw = true;
-        let lb = LineBreakpoint {path: tab.path_in_symbols.clone(), file_version: FileVersionInfo::default(), line: tab.area_state.cursor + 1, adjusted_line: None};
-        let breakpoint_id = debugger.find_line_breakpoint_fuzzy(lb);
+        let line_breakpoint = Self::make_breakpoint_for_current_line(tab);
+        let breakpoint_id = match line_breakpoint {
+            BreakpointOn::Line(ref lb) => debugger.find_line_breakpoint_fuzzy(&lb),
+            _ => return,
+        };
 
-        match breakpoint_id {
-            Some(id) if delete => {
-                debugger.remove_breakpoint(id);
-                if edit_condition {
-                    state.should_edit_breakpoint_condition = Some(id);
-                }
+        if delete {
+            match breakpoint_id {
+                Some(id) => { debugger.remove_breakpoint(id); },
+                None => { state.last_error = "no breakpoint".to_string(); },
             }
+            return;
+        }
+
+        let breakpoint_id = match breakpoint_id {
+            Some(id) if edit_condition => id, // don't toggle existing breakpoint on alt-enter
             Some(id) => {
-                if !edit_condition {
-                    let b = match debugger.breakpoints.try_get(id) {
-                        None => return,
-                        Some(x) => x,
-                    };
-                    let enable = !b.enabled;
-                    let r = debugger.set_breakpoint_enabled(id, enable);
-                    report_result(state, &r);
-                }
-            }
-            None if delete => {
-                state.last_error = "no breakpoint".to_string();
+                let enable = !debugger.breakpoints.get(id).enabled;
+                let r = debugger.set_breakpoint_enabled(id, enable);
+                report_result(state, &r);
+                id
             }
             None => {
-                let r = debugger.add_breakpoint(Self::make_breakpoint_for_current_line(tab));
+                let r = debugger.add_breakpoint(line_breakpoint);
                 report_result(state, &r);
                 match r {
-                    Ok(id) if edit_condition => {
-                        state.should_edit_breakpoint_condition = Some(id);
-                    }
-                    _ => (),
+                    Ok(x) => x,
+                    Err(_) => return,
                 }
             }
+        };
+
+        if edit_condition {
+            state.should_edit_breakpoint_condition = Some(breakpoint_id);
         }
     }
 
