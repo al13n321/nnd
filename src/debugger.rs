@@ -1945,6 +1945,16 @@ impl Debugger {
         }
     }
 
+    pub fn find_line_breakpoint_fuzzy(&self, lb: &LineBreakpoint) -> Option<BreakpointId> {
+        for (id, breakpoint) in self.breakpoints.iter() {
+            match &breakpoint.on {
+                BreakpointOn::Line(bp) if bp.path == lb.path && (bp.line == lb.line || bp.adjusted_line == Some(lb.line)) => return Some(id.clone()),
+                _ => (),
+            }
+        }
+        None
+    }
+
     fn activate_breakpoints(&mut self, ids: Vec<BreakpointId>) -> Result<()> {
         assert!(self.target_state.process_ready());
         let mut added_locations = false;

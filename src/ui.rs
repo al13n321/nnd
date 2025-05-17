@@ -3711,34 +3711,30 @@ impl CodeWindow {
             return;
         }
         ui.should_redraw = true;
-        let mut breakpoint_id = None;
-        for (id, breakpoint) in debugger.breakpoints.iter() {
-            match &breakpoint.on {
-                BreakpointOn::Line(bp) if bp.path == tab.path_in_symbols && (bp.line == tab.area_state.cursor + 1 || bp.adjusted_line == Some(tab.area_state.cursor + 1)) => {
-                    if delete {
-                        debugger.remove_breakpoint(id);
-                        return;
-                    }
-                    breakpoint_id = Some(id.clone());
-                    if !edit_condition {
-                        let enable = !breakpoint.enabled;
-                        let r = debugger.set_breakpoint_enabled(id, enable);
-                        report_result(state, &r);
-                    }
-                    break;
-                }
-                _ => (),
-            }
-        }
+        let line_breakpoint = Self::make_breakpoint_for_current_line(tab);
+        let breakpoint_id = match line_breakpoint {
+            BreakpointOn::Line(ref lb) => debugger.find_line_breakpoint_fuzzy(&lb),
+            _ => return,
+        };
+
         if delete {
-            assert!(breakpoint_id.is_none());
-            state.last_error = "no breakpoint".to_string();
+            match breakpoint_id {
+                Some(id) => { debugger.remove_breakpoint(id); },
+                None => { state.last_error = "no breakpoint".to_string(); },
+            }
             return;
         }
+
         let breakpoint_id = match breakpoint_id {
-            Some(x) => x,
+            Some(id) if edit_condition => id, // don't toggle existing breakpoint on alt-enter
+            Some(id) => {
+                let enable = !debugger.breakpoints.get(id).enabled;
+                let r = debugger.set_breakpoint_enabled(id, enable);
+                report_result(state, &r);
+                id
+            }
             None => {
-                let r = debugger.add_breakpoint(Self::make_breakpoint_for_current_line(tab));
+                let r = debugger.add_breakpoint(line_breakpoint);
                 report_result(state, &r);
                 match r {
                     Ok(x) => x,
@@ -3746,6 +3742,7 @@ impl CodeWindow {
                 }
             }
         };
+
         if edit_condition {
             state.should_edit_breakpoint_condition = Some(breakpoint_id);
         }

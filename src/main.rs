@@ -173,6 +173,23 @@ fn main() {
             use_default_debuginfod_urls = true;
         } else if let Some(_) = parse_arg(&mut args, &mut seen_args, "--aslr", "", true, false) {
             settings.disable_aslr = false;
+        } else if let Some(s) = parse_arg(&mut args, &mut seen_args, "--breakpoint", "", false, true) {
+            // This allows the path to contain ':' characters.
+            let parts: Vec<&str> = s.rsplitn(2, ':').collect();
+            if parts.len() != 2 {
+                eprintln!("invalid --breakpoint format: '{}', expected path:line", s);
+                process::exit(1);
+            }
+            let line = match parts[0].parse::<usize>() {
+                Err(_) => {
+                    eprintln!("invalid --breakpoint line number: '{}', expected nonnegative integer", parts[0]);
+                    process::exit(1);
+                }
+                Ok(l) => l,
+            };
+            let path = parts[1].to_string();
+
+            settings.breakpoints.push(LineBreakpoint {path: path.into(), file_version: FileVersionInfo::default(), line: line, adjusted_line: None});
         } else if print_help_chapter(&args[0], &all_args[0]) {
             process::exit(0);
         } else {
@@ -414,6 +431,15 @@ fn run(settings: Settings, attach_pid: Option<pid_t>, core_dump_path: Option<Str
         render_timer.set(1, frame_ns);
     }
 
+    for line_breakpoint in &context.settings.breakpoints {
+        let existing_id = debugger.find_line_breakpoint_fuzzy(&line_breakpoint);
+        if let Some(id) = existing_id {
+            let _ = debugger.set_breakpoint_enabled(id, true);
+        } else {
+            let _ = debugger.add_breakpoint(BreakpointOn::Line(line_breakpoint.clone()));
+        }
+    }
+
     // The debugger.process_events() path of this loop should be kept light, it'll likely be the bottleneck for conditional breakpoints (including thread-specific breakpoints, including temporary breakpoints when stepping).
     loop {
         let mut events: [libc::epoll_event; 32] = unsafe { mem::zeroed() };
@@ -480,7 +506,7 @@ fn run(settings: Settings, attach_pid: Option<pid_t>, core_dump_path: Option<Str
                 debugger.context.wake_main_thread.write(1);
             }
         }
-        
+
         if render_now {
             assert!(!pending_render);
             schedule_render = false;
