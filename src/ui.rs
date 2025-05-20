@@ -3717,10 +3717,7 @@ impl CodeWindow {
         }
         ui.should_redraw = true;
         let line_breakpoint = Self::make_breakpoint_for_current_line(tab);
-        let breakpoint_id = match line_breakpoint {
-            BreakpointOn::Line(ref lb) => debugger.find_line_breakpoint_fuzzy(&lb),
-            _ => return,
-        };
+        let breakpoint_id = debugger.find_line_breakpoint_fuzzy(&line_breakpoint);
 
         if delete {
             match breakpoint_id {
@@ -3739,7 +3736,7 @@ impl CodeWindow {
                 id
             }
             None => {
-                let r = debugger.add_breakpoint(line_breakpoint);
+                let r = debugger.add_breakpoint(BreakpointOn::Line(line_breakpoint));
                 report_result(state, &r);
                 match r {
                     Ok(x) => x,
@@ -3758,12 +3755,12 @@ impl CodeWindow {
             return;
         }
         ui.should_redraw = true;
-        let r = debugger.step_to_cursor(state.selected_thread, Self::make_breakpoint_for_current_line(tab));
+        let r = debugger.step_to_cursor(state.selected_thread, BreakpointOn::Line(Self::make_breakpoint_for_current_line(tab)));
         report_result(state, &r);
     }
 
-    fn make_breakpoint_for_current_line(tab: &CodeTab) -> BreakpointOn {
-        BreakpointOn::Line(LineBreakpoint {path: tab.path_in_symbols.clone(), file_version: tab.version_in_symbols.clone(), line: tab.area_state.cursor + 1, adjusted_line: None})
+    fn make_breakpoint_for_current_line(tab: &CodeTab) -> LineBreakpoint {
+        LineBreakpoint {path: tab.path_in_symbols.clone(), file_version: tab.version_in_symbols.clone(), line: tab.area_state.cursor + 1, adjusted_line: None}
     }
 
     fn evict_cache(&mut self) {
