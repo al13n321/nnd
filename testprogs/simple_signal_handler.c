@@ -1,17 +1,24 @@
 #include <signal.h>
 #include <stdio.h>
 
+static int count = 0;
+
 void signalHandler(int) {
-    printf("received signal\n");
+    if (count == 0)
+        printf("received signal\n");
+    count += 1;
 }
 
 int main() {
-    if (signal(SIGUSR1, signalHandler) == SIG_ERR) {
-        printf("error setting signal handler.\n");
+    struct sigaction sa = {0};
+    sa.sa_handler = signalHandler;
+    if (sigaction(SIGUSR1, &sa, NULL) == -1) {
+        perror("sigaction");
         return 1;
     }
 
-    raise(SIGUSR1);
+    while (count < 100000)
+        raise(SIGUSR1);
 
     printf("bye\n");
 

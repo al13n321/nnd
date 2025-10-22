@@ -451,16 +451,11 @@ pub struct Abbreviation {
     pub code: usize,
     pub tag: DwTag,
     pub has_children: bool,
-    pub attributes: Vec<AttributeSpecification>, // TODO: remove
 
     // 0 - normal tag-specific struct layout.
     // 1 - common struct layout for chasing abstract_origin/specification pointers without looking at the tag.
     // 2 - skip
     actions: [AbbreviationActions; 3],
-}
-impl Abbreviation {
-    #[inline]
-    pub fn tag(&self) -> DwTag { self.tag }
 }
 
 #[derive(Clone)]
@@ -906,7 +901,7 @@ pub fn list_units(dwarf: &mut Dwarf<DwarfSlice>, binary_name: &str, layouts: All
                 off_end += 1;
             }
 
-            let mut vec = vec![Abbreviation {code: 0, tag: DW_TAG_null, has_children: false, attributes: Vec::new(), actions: [Default::default(), Default::default(), Default::default()]}];
+            let mut vec = vec![Abbreviation {code: 0, tag: DW_TAG_null, has_children: false, actions: [Default::default(), Default::default(), Default::default()]}];
             let (mut consecutive, mut sorted) = (true, true);
             let mut prev_code = 0;
 
@@ -958,7 +953,7 @@ pub fn list_units(dwarf: &mut Dwarf<DwarfSlice>, binary_name: &str, layouts: All
                 }
                 actions[2] = prepare_abbreviation_actions(&attributes, shared.layouts.empty_layout_idx, encoding, &mut shared)?;
 
-                vec.push(Abbreviation {code, tag, has_children: has_children != 0, attributes, actions});
+                vec.push(Abbreviation {code, tag, has_children: has_children != 0, actions});
 
                 if code != prev_code + 1 {
                     consecutive = false;

@@ -83,36 +83,23 @@ pub struct MemMapsInfo {
 // We'll call these "static" vs "dynamic" addresses. This struct is responsible for mapping between the two.
 // We expect that the difference between dynamic and static addresses is consistent across all sections that we care about (.text, .data, etc).
 // So, the "mapping" is just one number that needs to be added/subtracted. (It gets a whole struct because it turned out more convenient this way, and in case this mapping turns out to be more complex on other platforms.)
+// This offset could also be taken from link_map in r_debug rendezvous struct, but why rely on that.
+// We assume that all executable mmaps backed by ELF files are created by the ELF loader, not e.g. by the program itself.
 // (Maybe the correct word is "relocated" addresses instead of "dynamic"?)
 #[derive(Clone)]
 pub struct AddrMap {
     // `dynamic - static`. May be "negative", use wrapping_add.
     pub diff: usize,
     known: bool,
-    // If different sections are offset by a different amount, this is set to false, so that we can show some warning in the UI or something.
+    // If different executable sections are offset by a different amount, this is set to false, so that we can show some warning in the UI or something.
     // Not to be confused with the difference between address and file offset - this difference may be different for different sections, we make no assumptions about that.
+    // We currently only look at executable sections here, but the offset needs to be consistent for non-executable sections too, e.g. .text and .data must have the same offset;
+    // if this assumption is violated, we won't notice.
     consistent: bool,
-
-    // Currently AddrMap wants all sections to have the same offset. But IRL I've seen at least two violations of that:
-    //  1. Sometimes a section is just off by one page, presumably because of alignment. I've seen it with ".iplt" section.
-    //     For now, we work around this by preferring offset for the important sections (currently just .text). So some sections may end up with incorrect offset.
-    //     TODO: We should probably change this struct to have an actual range map instead of assuming constant offset.
-    //  2. If the program manually mmap()s its own executable file (not to execute it, just to read, for some reason), this map will show up
-    //     alongside the maps from the loaded executable, and AddrMap will hit this code path and be confused.
-    //     In particular, this happens when daisy-chaining the debugger: `nnd -t /dev/pts/42 nnd -t /dev/pts/43 nnd my_program` - the
-    //     middle nnd will mmap nnd (because the debuggee and the debugger happen to be the same executable file), and the outer nnd will get confused.
-    //     If the manual mmap() is for the whole file, it's easy to distinguish: it's the biggest of the maps for that file.
-    //     So in case of conflicting offsets we use offset from the shortest map, just to work around this case.
-    //     (But if your program mmap()s one page of its own executable, it becomes ~undebuggable with nnd.
-    //      Looking forward to this being used for reverse engineering avoidance, then we'll have to fix this properly.)
-    // So, if different maps/sections have different offsets, we pick the one with max priotity like this: first prefer .text section, then prefer short maps.
-    best_used_map: (/*is_text_section*/ bool, /*-map_bytes*/ usize),
 }
-impl Default for AddrMap { fn default() -> Self { Self {diff: 0, known: false, consistent: true, best_used_map: (false, 0)} } }
+impl Default for AddrMap { fn default() -> Self { Self {diff: 0, known: false, consistent: true} } }
 impl AddrMap {
     pub fn update(&mut self, map: &MemMapInfo, elf: &ElfFile, /* just for logging */ path: &str) {
-        // We assume that all mmaps backed by ELF files are created by the ELF loader, and so correspond to ELF sections and have consistent difference between dynamic and static addresses.
-        // (So if the program manually mmap()s its own executable or some dynamic library it's using, we may get incorrect `diff` value and fail to use debug symbols correctly and even fail to unwind stacks correctly.)
         match &map.binary_locator.as_ref().unwrap().special {
             SpecialSegmentId::None => (),
             SpecialSegmentId::Vdso(range) => {
@@ -120,6 +107,12 @@ impl AddrMap {
                 self.known = true;
                 return;
             }
+        }
+        if !map.perms.contains(MemMapPermissions::WRITE) {
+            // Don't look at non-executable maps as they often include things like:
+            //  * the program mmapping itself for introspection,
+            //  * some special sections loaded at different offsets, e.g. .iplt
+            return;
         }
         let mut idx = elf.section_by_offset.partition_point(|t| t.0 < map.offset);
         while idx < elf.section_by_offset.len() && elf.section_by_offset[idx].1 <= map.offset + map.len {
@@ -129,19 +122,12 @@ impl AddrMap {
                 continue;
             }
             let diff = map.start.wrapping_sub(map.offset).wrapping_sub(s.address.wrapping_sub(s.offset));
-            let priority = (s.name == ".text", usize::MAX - map.len);
             if !self.known {
                 self.diff = diff;
                 self.known = true;
-                self.best_used_map = priority;
             } else if diff != self.diff && self.consistent {
                 eprintln!("warning: inconsistent address differences between sections: section {} has diff 0x{:x}, some other section has diff 0x{:x} in {}", s.name, diff, self.diff, path);
                 self.consistent = false;
-
-                if priority > self.best_used_map {
-                    self.best_used_map = priority;
-                    self.diff = diff;
-                }
             }
             idx += 1;
         }

@@ -39,7 +39,7 @@ macro_rules! log {
     );
 }
 
-// A very minimal profiling thing. Prints to stderr in destructor.
+// A minimal profiling thing. Prints to stderr in destructor.
 pub struct ProfileScope {
     name: String,
     start: Instant,
@@ -140,6 +140,17 @@ impl Drop for LogTimestampInDestructor {
         assert!(r == 0);
         eprintln!("[{}.{:09}] {}", t.tv_sec, t.tv_nsec, self.0);
     }
+}
+
+pub fn get_thread_cpu_time_ns() -> usize {
+    let mut ts = libc::timespec {
+        tv_sec: 0,
+        tv_nsec: 0,
+    };
+    unsafe {
+        libc::clock_gettime(libc::CLOCK_THREAD_CPUTIME_ID, &mut ts);
+    }
+    ts.tv_sec as usize * 1_000_000_000 + ts.tv_nsec as usize
 }
 
 pub struct ProfileBucket {

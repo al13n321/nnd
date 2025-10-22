@@ -2571,6 +2571,7 @@ impl WindowContent for DisassemblyWindow {
             KeyHint::key(KeyAction::GoToLine, "go to address"),
             KeyHint::key(KeyAction::CloseTab, "close/pin tab"),
             KeyHint::keys(&[KeyAction::PreviousLocation, KeyAction::NextLocation], "select level"),
+            KeyHint::keys(&[KeyAction::ReorderRowUp, KeyAction::ReorderRowDown], "reorder tabs"),
             KeyHint::keys(&[KeyAction::Enter, KeyAction::DeleteRow, KeyAction::EditCondition], "breakpoint").if_not_core_dump(),
             KeyHint::key(KeyAction::StepToCursor, "run to cursor").if_not_core_dump(),
         ]);
@@ -4510,6 +4511,7 @@ impl WindowContent for CodeWindow {
             KeyHint::key(KeyAction::Find, "find"),
             KeyHint::keys(&[KeyAction::NextMatch, KeyAction::PreviousMatch], "find next/previous"),
             KeyHint::keys(&[KeyAction::Enter, KeyAction::DeleteRow, KeyAction::EditCondition], "toggle/delete/edit breakpoint").if_not_core_dump(),
+            KeyHint::keys(&[KeyAction::ReorderRowUp, KeyAction::ReorderRowDown], "reorder tabs"),
             KeyHint::key(KeyAction::StepToCursor, "run to cursor").if_not_core_dump(),
         ]);
     }

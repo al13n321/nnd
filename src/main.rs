@@ -172,6 +172,12 @@ fn main() {
                 Err(e) => eprintln!("error: {}", e),
             }
             return;
+        } else if let Some(path) = parse_arg(&mut args, &mut seen_args, "--load-symbols", "", false, false) {
+            match run_load_symbols_tool(path, calculate_num_threads(&settings.num_threads)) {
+                Ok(()) => (),
+                Err(e) => eprintln!("error: {}", e),
+            }
+            return;
         } else if let Some(_) = parse_arg(&mut args, &mut seen_args, "--dump-core", "", true, false) {
             dump_core = true;
         } else if let Some(m) = parse_arg(&mut args, &mut seen_args, "--mode", "", false, false) {
@@ -210,13 +216,13 @@ fn main() {
             settings.periodic_timer_ns = (seconds * 1e9) as usize;
         } else if let Some(_) = parse_arg(&mut args, &mut seen_args, "--verbose", "", true, false) {
             settings.trace_logging = true;
-        } else if let Some(v) = parse_arg(&mut args, &mut seen_args, "--max-threads", "", false, false) {
-            settings.max_threads = match usize::from_str(&v) {
+        } else if let Some(v) = parse_arg(&mut args, &mut seen_args, "--num-threads", "", false, false) {
+            settings.num_threads = match usize::from_str(&v) {
                 Err(_) => {
-                    eprintln!("invalid --max-threads (expected nonnegative integer): {}", v);
+                    eprintln!("invalid --num-threads (expected nonnegative integer): {}", v);
                     process::exit(1);
                 }
-                Ok(x) => x,
+                Ok(n) => Some(n),
             };
         } else if let Some(s) = parse_arg(&mut args, &mut seen_args, "--core", "-c", false, false) {
             core_dump_path = Some(s);
@@ -407,8 +413,18 @@ fn main() {
     }
 }
 
+fn calculate_num_threads(num_threads: &Option<usize>) -> usize {
+    if let &Some(n) = num_threads {
+        n
+    } else if let Ok(n) = thread::available_parallelism() {
+        n.get() - 1
+    } else {
+        7
+    }.max(1)
+}
+
 fn run(settings: Settings, attach_pid: Option<pid_t>, core_dump_path: Option<String>, command_line: Option<Vec<String>>, persistent: PersistentState, supplementary_binaries: SupplementaryBinaries) -> Result<()> {
-    let num_threads = thread::available_parallelism().map_or(8, |n| n.get()).min(settings.max_threads).max(1);
+    let num_threads = calculate_num_threads(&settings.num_threads);
     let context = Arc::new(Context {settings, executor: Executor::new(num_threads), wake_main_thread: Arc::new(EventFD::new())});
 
     let epoll = Rc::new(Epoll::new()?);

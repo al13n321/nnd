@@ -1,6 +1,5 @@
 bugs:
 gets stuck when debuggee is OOM-killed by linux
-fix empty symbols loading stage name near the end
 investigate regression in symbols loading speed (stuck on "parsing drawf" for ~10 seconds)
 investigate why many types are not deduped, e.g. there's DB::Block#441
 make stack unwinding work when control is in .plt or .plt.got, see "Recognise PLT entries such as" in libunwind code
@@ -11,6 +10,7 @@ make auto-downcast check that the types are in the same language, to avoid downc
 performance:
 optimize symbols loading
   profile attribute loading
+  more dynamic work distribution to threads (see util% in --load-symbols output on devserver)
   madvise
     benchmark with file pre-evicted from page cache (using vmtouch)
   fix warning about unsupported forms, especially implicit_const on flags

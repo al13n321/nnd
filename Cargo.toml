@@ -6,7 +6,7 @@ documentation = "https://github.com/al13n321/nnd"
 repository = "https://github.com/al13n321/nnd"
 keywords = ["debugger", "tui"]
 categories = ["development-tools::debugging"]
-version = "0.54.0" # [[this version number is written by release.sh]]
+version = "0.55.0" # [[this version number is written by release.sh]]
 edition = "2021" # I tried updating to 2024, but it just makes build 10% slower without making the resulting executable any faster
 rust-version = "1.89" # build often breaks when updating the compiler because of newly added warnings
 

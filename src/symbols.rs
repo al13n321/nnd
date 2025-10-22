@@ -1,5 +1,5 @@
 use crate::{*, error::{*, Result, Error}, util::*, elf::*, procfs::*, range_index::*, registers::*, log::*, arena::*, types::*, expr::{*, Value}, dwarf::*, os::*};
-use std::{cmp, str, mem, rc::Rc, fs::File, path::{Path, PathBuf}, sync::atomic::{AtomicUsize, Ordering, AtomicBool}, sync::{Arc, Mutex}, collections::{HashMap, hash_map::{Entry, DefaultHasher}}, hash::{Hash, Hasher}, ffi::OsStr, os::unix::ffi::OsStrExt, io, io::{Read, Write as ioWrite}, fmt::Write, time::{Instant, Duration}, ptr, slice, fmt, borrow::Cow};
+use std::{cmp, str, mem, rc::Rc, fs::File, path::{Path, PathBuf}, sync::atomic::{AtomicUsize, Ordering, AtomicBool}, sync::{Arc, Mutex}, collections::{HashMap, hash_map::{Entry, DefaultHasher}}, hash::{Hash, Hasher}, ffi::OsStr, os::unix::ffi::OsStrExt, io, io::{Read, Write as ioWrite}, fmt::Write, time::{Instant, Duration}, ptr, slice, fmt, borrow::Cow, thread, io::BufRead, hint};
 use gimli::*;
 use bitflags::*;
 use std::ops::Range;
@@ -1037,7 +1037,7 @@ impl SymbolsLoader {
             [(0.000, ""), (0.404, "processing name -> type"), ],
             [(0.000, ""), (0.031, "processing type -> name"), ],
             [(0.000, ""), (0.244, "fixing up type and func refs"), ],
-            [(0.000, ""), (0.000, ""), ],
+            [(0.605, "finishing up"), (0.000, ""), ],
             [(0.000, ""), (0.000, ""), ],
             [(0.000, ""), (0.000, ""), ],];
         let mut progress_per_stage: Vec<[(f64, &'static str); 2]> = Vec::new();
@@ -2432,7 +2432,7 @@ impl<'a> DwarfLoader<'a> {
             let inherited_flags = self.main_stack.top().flags & StackFlags::IS_ANY_SCOPE;
             let mut _f = StackFlags::empty();
             let top = self.main_stack.push_uninit(&mut _f);
-            *top = MainStackEntry {tag: abbrev.tag(), flags: inherited_flags};
+            *top = MainStackEntry {tag: abbrev.tag, flags: inherited_flags};
 
             if skip_subtree != usize::MAX {
                 cursor.skip_attributes(abbrev, &attribute_context)?;
@@ -2440,7 +2440,7 @@ impl<'a> DwarfLoader<'a> {
             }
 
             // Each case here has to read/skip all attributes from `cursor`.
-            match abbrev.tag() {
+            match abbrev.tag {
                 DW_TAG_compile_unit | DW_TAG_partial_unit | DW_TAG_type_unit => {
                     cursor.skip_attributes(abbrev, &attribute_context)?;
                     let ranges_top = self.ranges_stack.push_uninit(&mut self.main_stack.top_mut().flags);
@@ -2475,7 +2475,7 @@ impl<'a> DwarfLoader<'a> {
                     if attrs.fields & (VariableAttributes::location_expr | VariableAttributes::location_list | VariableAttributes::const_value_usize | VariableAttributes::const_value_slice) != 0 {
                         Self::chase_origin_pointers(&mut self.shard, &self.loader, &attribute_context, attrs.specification_or_abstract_origin, &mut attrs.name, &mut attrs.linkage_name, &mut attrs.type_, &mut attrs.decl, &mut attrs.fields)?;
                         let decl = if attrs.fields & VariableAttributes::decl != 0 {Self::parse_line_info(&mut self.shard, &self.loader, self.unit, &attrs.decl)} else {LineInfo::invalid()};
-                        let var_flags = if abbrev.tag() == DW_TAG_variable { VariableFlags::empty() } else { VariableFlags::PARAMETER };
+                        let var_flags = if abbrev.tag == DW_TAG_variable { VariableFlags::empty() } else { VariableFlags::PARAMETER };
                         let type_ = if attrs.fields & VariableAttributes::type_ != 0 {attrs.type_ as *const TypeInfo} else {self.loader.types.builtin_types.unknown};
                         let var = Variable::new(attrs.name, type_, offset, decl, var_flags);
                         let loc = if attrs.fields & VariableAttributes::location_expr != 0 {
@@ -2658,13 +2658,13 @@ impl<'a> DwarfLoader<'a> {
                     let mut attrs = TypeAttributes::default();
                     unsafe {cursor.read_attributes(abbrev, /*which_layout*/ 0, &attribute_context, &raw mut attrs as *mut u8)}?;
                     let mut is_alias = false;
-                    let t = match abbrev.tag() {
+                    let t = match abbrev.tag {
                         DW_TAG_base_type => Type::Primitive(PrimitiveFlags::empty()),
                         DW_TAG_unspecified_type => Type::Primitive(PrimitiveFlags::UNSPECIFIED),
                         DW_TAG_structure_type | DW_TAG_class_type | DW_TAG_union_type => Type::Struct(StructType::default()),
                         DW_TAG_enumeration_type => Type::Enum(EnumType {enumerands: &[], type_: self.loader.types.builtin_types.unknown}),
                         DW_TAG_pointer_type | DW_TAG_reference_type | DW_TAG_rvalue_reference_type => Type::Pointer(
-                            PointerType {flags: if abbrev.tag() == DW_TAG_pointer_type {PointerFlags::empty()} else {PointerFlags::REFERENCE},
+                            PointerType {flags: if abbrev.tag == DW_TAG_pointer_type {PointerFlags::empty()} else {PointerFlags::REFERENCE},
                                          // pointer without DW_AT_type is a void*
                                          type_: self.loader.types.builtin_types.void}),
                         DW_TAG_array_type => Type::Array(ArrayType {flags: ArrayFlags::empty(), type_: self.loader.types.builtin_types.unknown, stride: 0, len: 0}),
@@ -2697,7 +2697,7 @@ impl<'a> DwarfLoader<'a> {
                         info.flags.insert(TypeFlags::SIZE_KNOWN);
                     } else if attrs.fields & TypeAttributes::bit_size != 0 {
                         if attrs.bit_size & 7 != 0 {
-                            if self.shard.warn.check(line!()) { eprintln!("warning: DW_AT_bit_size = {} on {} is not supported", attrs.bit_size, abbrev.tag()); }
+                            if self.shard.warn.check(line!()) { eprintln!("warning: DW_AT_bit_size = {} on {} is not supported", attrs.bit_size, abbrev.tag); }
                             info.flags.insert(TypeFlags::UNSUPPORTED);
                         }
                     }
@@ -2713,7 +2713,7 @@ impl<'a> DwarfLoader<'a> {
                                     a.stride = attrs.bit_stride / 8;
                                 }
                             }
-                            _ => if self.shard.warn.check(line!()) { eprintln!("warning: DW_AT_{{byte,bit}}_stride on {} is not supported", abbrev.tag()); }
+                            _ => if self.shard.warn.check(line!()) { eprintln!("warning: DW_AT_{{byte,bit}}_stride on {} is not supported", abbrev.tag); }
                         }
                     }
                 
@@ -2722,7 +2722,7 @@ impl<'a> DwarfLoader<'a> {
                     }
 
                     if attrs.fields & DwarfReference::HAS_SPECIFICATION_OR_ABSTRACT_ORIGIN != 0 {
-                        if self.shard.warn.check(line!()) { eprintln!("warning: DW_AT_specification/DW_AT_abstract_origin on {} is not supported (@0x{:x})", abbrev.tag(), offset.0); }
+                        if self.shard.warn.check(line!()) { eprintln!("warning: DW_AT_specification/DW_AT_abstract_origin on {} is not supported (@0x{:x})", abbrev.tag, offset.0); }
                     }
 
                     if attrs.fields & TypeAttributes::type_ != 0 {
@@ -2732,14 +2732,15 @@ impl<'a> DwarfLoader<'a> {
                             Type::Pointer(p) => p.type_ = type_,
                             Type::PointerToMember(p) => p.type_ = type_,
                             Type::Array(a) => a.type_ = type_,
-                            _ => if self.shard.warn.check(line!()) { eprintln!("warning: DW_AT_type on {} is not supported (@0x{:x})", abbrev.tag(), offset.0); }
+                            Type::Function => (),
+                            _ => if self.shard.warn.check(line!()) { eprintln!("warning: DW_AT_type on {} is not supported (@0x{:x})", abbrev.tag, offset.0); }
                         }
                     }
 
                     if attrs.fields & TypeAttributes::containing_type != 0 {
                         match &mut info.t {
                             Type::PointerToMember(p) => p.containing_type = attrs.containing_type as *const TypeInfo,
-                            _ => if self.shard.warn.check(line!()) { eprintln!("warning: DW_AT_containing_type on {} is not supported (@0x{:x})", abbrev.tag(), offset.0); }
+                            _ => (),
                         }
                     } else if let Type::PointerToMember(p) = &info.t {
                         if self.shard.warn.check(line!()) { eprintln!("warning: DW_AT_ptr_to_member_type without DW_AT_containing_type (@0x{:x})", offset.0); }
@@ -2760,7 +2761,7 @@ impl<'a> DwarfLoader<'a> {
                                 DW_ATE_complex_float => is_complex_float = true,
                                 //DW_ATE_packed_decimal | DW_ATE_numeric_string | DW_ATE_edited | DW_ATE_signed_fixed | DW_ATE_unsigned_fixed | DW_ATE_decimal_float
                                 _ => {
-                                    if self.shard.warn.check(line!()) { eprintln!("warning: DW_AT_encoding = {} on {} is not supported", DwAte(attrs.encoding as u8), abbrev.tag()); }
+                                    if self.shard.warn.check(line!()) { eprintln!("warning: DW_AT_encoding = {} on {} is not supported", DwAte(attrs.encoding as u8), abbrev.tag); }
                                     info.flags.insert(TypeFlags::UNSUPPORTED);
                                 }
                             }
@@ -2769,7 +2770,7 @@ impl<'a> DwarfLoader<'a> {
                             // So we just ignore it.
                             Type::Enum(_) => (),
                             _ => {
-                                if self.shard.warn.check(line!()) { eprintln!("warning: DW_AT_encoding on {} is not supported", abbrev.tag()); }
+                                if self.shard.warn.check(line!()) { eprintln!("warning: DW_AT_encoding on {} is not supported", abbrev.tag); }
                                 info.flags.insert(TypeFlags::UNSUPPORTED)
                             }
                         }
@@ -2811,7 +2812,7 @@ impl<'a> DwarfLoader<'a> {
                         }
                     }
 
-                    if abbrev.tag() == DW_TAG_base_type {
+                    if abbrev.tag == DW_TAG_base_type {
                         let type_enum = if let &Type::Primitive(flags) = &info.t {
                             match info.size {
                                 8 if flags.contains(PrimitiveFlags::FLOAT) => ValueType::F64,
@@ -2863,7 +2864,7 @@ impl<'a> DwarfLoader<'a> {
                     let top = self.main_stack.top();
                     if !top.flags.contains(StackFlags::IS_TYPE_SCOPE | StackFlags::IS_VALID_SCOPE) {
                         if !top.flags.contains(StackFlags::IS_TYPE_SCOPE) {
-                            if self.shard.warn.check(line!()) { eprintln!("warning: {} in {} is not supported (@0x{:x})", abbrev.tag(), self.main_stack.top2().tag, offset.0); }
+                            if self.shard.warn.check(line!()) { eprintln!("warning: {} in {} is not supported (@0x{:x})", abbrev.tag, self.main_stack.top2().tag, offset.0); }
                         }
                     } else {
                         let type_top = self.type_stack.top_mut();
@@ -2874,7 +2875,7 @@ impl<'a> DwarfLoader<'a> {
                         }
                         field.flags.insert(type_top.variant_field_flags);
                         field.discr_value = type_top.discr_value;
-                        if abbrev.tag() == DW_TAG_inheritance {
+                        if abbrev.tag == DW_TAG_inheritance {
                             field.flags.insert(FieldFlags::INHERITANCE);
                             field.name = "#base";
                         }
@@ -2901,12 +2902,12 @@ impl<'a> DwarfLoader<'a> {
                             field.flags.insert(FieldFlags::ARTIFICIAL);
                         }
 
-                        if abbrev.tag() == DW_TAG_enumerator {
+                        if abbrev.tag == DW_TAG_enumerator {
                             // Enumerand.
                             unsafe {
                                 match &mut (*type_).t {
                                     Type::Enum(e) => self.shard.types.temp_types.add_enumerand(e, Enumerand {value: attrs.const_value_usize, name: field.name, flags: EnumerandFlags::empty()}),
-                                    _ => if self.shard.warn.check(line!()) { eprintln!("warning: {} in {} is not supported", abbrev.tag(), self.main_stack.top2().tag); }
+                                    _ => if self.shard.warn.check(line!()) { eprintln!("warning: {} in {} is not supported", abbrev.tag, self.main_stack.top2().tag); }
                                 }
                             }
                         } else {
@@ -2933,7 +2934,7 @@ impl<'a> DwarfLoader<'a> {
                                 let t = unsafe {&mut *type_};
                                 match &mut t.t {
                                     Type::Struct(s) => self.shard.types.temp_types.add_field(s, field),
-                                    _ => if self.shard.warn.check(line!()) { eprintln!("warning: {} in {} is not supported", abbrev.tag(), self.main_stack.top2().tag); }
+                                    _ => if self.shard.warn.check(line!()) { eprintln!("warning: {} in {} is not supported", abbrev.tag, self.main_stack.top2().tag); }
                                 }
                             }
                         }
@@ -2942,7 +2943,7 @@ impl<'a> DwarfLoader<'a> {
 
                 DW_TAG_variant_part | DW_TAG_variant if !self.main_stack.top().flags.contains(StackFlags::IS_TYPE_SCOPE | StackFlags::IS_VALID_SCOPE) => {
                     if !self.main_stack.top().flags.contains(StackFlags::IS_TYPE_SCOPE) {
-                        if self.shard.warn.check(line!()) { eprintln!("warning: {} in {} is not supported", abbrev.tag(), self.main_stack.top2().tag); }
+                        if self.shard.warn.check(line!()) { eprintln!("warning: {} in {} is not supported", abbrev.tag, self.main_stack.top2().tag); }
                     }
                     cursor.skip_attributes(abbrev, &attribute_context)?;
                 }
@@ -3051,7 +3052,7 @@ impl<'a> DwarfLoader<'a> {
                         }
                     } else {
                         if self.main_stack.top2().tag != DW_TAG_array_type {
-                            if self.shard.warn.check(line!()) { eprintln!("warning: {} in {} is not supported", abbrev.tag(), self.main_stack.top2().tag); }
+                            if self.shard.warn.check(line!()) { eprintln!("warning: {} in {} is not supported", abbrev.tag, self.main_stack.top2().tag); }
                         } else {
                             // (Warning would already be printed when parsing the parent.)
                         }
@@ -3362,5 +3363,88 @@ fn parse_dwarf_ranges(dwarf: &Dwarf<DwarfSlice>, unit: &Unit<DwarfSlice>, ranges
         }
     }
     
+    Ok(())
+}
+
+pub fn run_load_symbols_tool(path: String, num_threads: usize) -> Result<()> {
+    let file = File::open(&path)?;
+    let elf = Arc::new(ElfFile::from_file(path.clone(), &file, file.metadata()?.len())?);
+    let symbols;
+
+    let status = Arc::new(SymbolsLoadingStatus::new());
+    let progress_thread = {
+        let status_copy = status.clone();
+        thread::spawn(move || {
+            while !status_copy.cancel.load(Ordering::Relaxed) {
+                eprint!("\r{:.2}%\r", status_copy.progress_ppm.load(Ordering::Relaxed) as f64 / 1e4);
+                thread::sleep(Duration::from_millis(100));
+            }
+            eprint!("\r");
+        })
+    };
+
+    {
+        let _prof = ProfileScope::new("loading symbols".to_string());
+
+        let (loader, stage_names);
+        {
+            let start_time = Instant::now();
+
+            loader = Arc::new(SyncUnsafeCell::new(SymbolsLoader::new(vec![elf], 1, num_threads, status.clone())?));
+
+            stage_names = unsafe {&*loader.get()}.progress_per_stage.clone();
+            println!("stage 0 prepare ({}) took {}", stage_names[0][0].1, PrettyDuration(start_time.elapsed().as_secs_f64()));
+        }
+        let num_shards = unsafe {&*loader.get()}.num_shards;
+        let mut stage_idx = 1usize;
+
+        loop {
+            {
+                let start_time = Instant::now();
+                let not_done = unsafe {&mut *loader.get()}.prepare_stage(stage_idx)?;
+                println!("stage {} prepare ({}) took {}", stage_idx, stage_names[stage_idx][0].1, PrettyDuration(start_time.elapsed().as_secs_f64()));
+                if !not_done {
+                    break;
+                }
+            }
+
+            let start_time = Instant::now();
+            let threads: Vec<thread::JoinHandle<(Instant, usize)>> = (0..num_shards).map(|shard_idx| {
+                let loader_copy = loader.clone();
+                let status_copy = status.clone();
+                thread::spawn(move || {
+                    let start_cpu_time = get_thread_cpu_time_ns();
+
+                    if let Err(e) = unsafe {&*loader_copy.get()}.run(stage_idx, shard_idx) {
+                        status_copy.cancel.store(true, Ordering::Relaxed);
+                        eprintln!("error: {}", e);
+                    }
+
+                    (Instant::now(), get_thread_cpu_time_ns() - start_cpu_time)
+                })
+            }).collect();
+
+            let thread_times: Vec<(Instant, usize)> = threads.into_iter().map(|t| t.join().unwrap()).collect();
+
+            if status.cancel.load(Ordering::Relaxed) {
+                return err!(Dwarf, "failed to load");
+            }
+
+            let end_time = Instant::now();
+            let elapsed = (end_time - start_time).as_secs_f64();
+            let threads_elapsed: f64 = thread_times.iter().map(|(ts, _)| (*ts - start_time).as_secs_f64()).sum();
+            let threads_cpu_ns: usize = thread_times.iter().map(|(_, t)| *t).sum();
+            println!("stage {} run ({}) took {}; thread time util {:.2}% * cpu util {:.2}%", stage_idx, stage_names[stage_idx][1].1, PrettyDuration(elapsed), threads_elapsed / num_shards as f64 / elapsed * 100.0, threads_cpu_ns as f64 / 1e9 / threads_elapsed * 100.0);
+
+            stage_idx += 1;
+        }
+        symbols = Arc::into_inner(loader).unwrap().into_inner().into_result();
+    }
+
+    status.cancel.store(true, Ordering::Relaxed);
+    progress_thread.join().unwrap();
+
+    hint::black_box(symbols);
+
     Ok(())
 }

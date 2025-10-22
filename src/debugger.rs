@@ -725,10 +725,11 @@ impl Debugger {
         if self.mode == RunMode::CoreDump {
             return Ok((false, false));
         }
+
+        // true if we should refresh process info or consider calling handle_breakpoints or something like that.
+        // false if it's a "spurious" stop, e.g. conditional breakpoint hit with condition not satisfied.
+        let mut nontrivial_stop = false;
         
-        // If all we did was skip conditional breakpoints, don't waste time refreshing process info. Otherwise conditional breakpoints would be very slow.
-        // (Also useful for other spurious traps, e.g. when doing step-over in a recursive function.)
-        let mut refresh_info = false;
         let mut is_initial_exec = false;
         let mut stack_digests_to_select: Vec<(pid_t, (Vec<usize>, bool, u16))> = Vec::new();
 
@@ -788,7 +789,7 @@ impl Debugger {
                     eprintln!("warning: got event {:x} for thread {} that is already stopped", wstatus, tid);
                 }
 
-                let mut skip_refresh = false;
+                let mut trivial_stop = false;
 
                 if libc::WIFEXITED(wstatus) || libc::WIFSIGNALED(wstatus) {
                     let stepping_this_thread = self.stepping.as_ref().is_some_and(|s| s.tid == tid);
@@ -929,7 +930,7 @@ impl Debugger {
                         } else {
                             // Fast path for conditional breakpoints when condition is not satisfied (among other things).
                             force_resume = true;
-                            skip_refresh = !refresh_process_info;
+                            trivial_stop = !refresh_process_info;
                         }
                     } else { // other signals, with no special meaning for the debugger
                         if self.context.settings.trace_logging { eprintln!("trace: thread {} stopped by signal {} {}", tid, signal, signal_name(signal)); }
@@ -945,6 +946,9 @@ impl Debugger {
                             self.target_state = ProcessState::Suspended;
                             self.cancel_stepping();
                             self.ptrace_interrupt_all_running_threads()?;
+                        } else {
+                            force_resume = true;
+                            trivial_stop = true;
                         }
                     }
 
@@ -966,8 +970,8 @@ impl Debugger {
                     return err!(Internal, "waitpid() returned unexpected status: {}", wstatus);
                 }
 
-                if !skip_refresh {
-                    refresh_info = true;
+                if !trivial_stop {
+                    nontrivial_stop = true;
                 }
             }
         }
@@ -977,7 +981,7 @@ impl Debugger {
         //  * The forked child process didn't do the initial exec() yet. In particular, don't kick off loading symbols because that would uselessly load symbols for the debugger itself.
         //  * All we did was skip conditional breakpoints. This path must be kept fast, otherwise conditional breakpoints will be slow.
         let mut drop_caches = false;
-        if refresh_info && self.target_state.process_ready() {
+        if nontrivial_stop && self.target_state.process_ready() {
             // Re-read /proc/<pid>/maps to see what dynamic libraries are loaded. Re-resolve breakpoints if there are any new libraries.
             // For simplicity we do it on every user-visible stop. If this turns out to be slow, we can be more careful and only do it on _dl_debug_state hit and maybe on periodic timer.
             drop_caches |= refresh_maps_and_binaries_info(self);

@@ -7,7 +7,7 @@ pub struct Settings {
     pub stop_on_initial_exec: bool,
     pub stop_on_main: bool,
     pub fps: f64,
-    pub max_threads: usize,
+    pub num_threads: Option<usize>,
     // We currently use one timer for a few periodic tasks:
     //  * refreshing resource stats (cpu and memory usage) for each thread and total,
     //  * saving state to file (watches, breakpoints, etc) if changed (state is also saved on clean exit, but not on panic or crash),
@@ -49,7 +49,7 @@ impl Default for Settings {
         stop_on_initial_exec: false,
         stop_on_main: false,
         fps: 144.0,
-        max_threads: 128,
+        num_threads: None,
         periodic_timer_ns: 250_000_000,
         mouse_mode: MouseMode::Full,
         code_dirs: Vec::new(),
