@@ -195,7 +195,7 @@ fn main() {
             };
         } else if let Some(_) = parse_arg(&mut args, &mut seen_args, "--fixed-fps", "", true, false) {
             settings.fixed_fps = true;
-        } else if let Some(path) = parse_arg(&mut args, &mut seen_args, "--dir", "-d", false, false) {
+        } else if let Some(path) = parse_arg(&mut args, &mut seen_args, "--dir", "-d", false, true) {
             settings.code_dirs.push(PathBuf::from(path));
         } else if let Some(path) = parse_arg(&mut args, &mut seen_args, "--module", "-m", false, /*repeatable*/ true) {
             settings.supplementary_binary_paths.push(path);
