@@ -471,22 +471,30 @@ fn eval_expression(expr: &Expression, node_idx: ASTIdx, state: &mut EvalState, c
             if op == BinaryOperator::Index || op == BinaryOperator::Slicify {
                 let b = to_basic(&rhs, &mut context.memory, "index with")?;
                 if b.is_f64() { return err!(TypeMismatch, "can't index with float"); }
-                let idx = b.cast_to_usize();
+                let idx = b.cast_to_isize();
                 let t = unsafe {&*lhs.type_};
                 return Ok(match &t.t {
                     Type::Pointer(p) => {
                         let addr = lhs.val.into_value(8, &mut context.memory)?.get_usize()?;
-                        let stride = unsafe {(*p.type_).calculate_size()};
+                        let stride = unsafe {(*p.type_).calculate_size()} as isize;
                         if stride == 0 { return err!(TypeMismatch, "array element type has size 0"); }
-                        if idx > (usize::MAX - addr) / stride { return err!(Runtime, "array size causes overflow"); }
+                        let addr_offset = isize::checked_add(addr as isize, idx * stride);
+                        let addr_offset = match addr_offset {
+                            Some(v) => v as usize,
+                            None => return err!(Runtime, "array size causes overflow"),
+                        };
                         if op == BinaryOperator::Index {
-                            Value {val: AddrOrValueBlob::Addr(addr + idx * stride), type_: p.type_, flags: lhs.flags.inherit()}
+                            Value {val: AddrOrValueBlob::Addr(addr_offset), type_: p.type_, flags: lhs.flags.inherit()}
                         } else { // Slicify
-                            let array_type = state.types.add_array(p.type_, Some(idx), ArrayFlags::empty());
+                            if idx < 0 { return err!(Runtime, "cannot index with negative index!"); }
+                            let array_type = state.types.add_array(p.type_, Some(idx as usize), ArrayFlags::empty());
                             Value {val: AddrOrValueBlob::Addr(addr), type_: array_type, flags: lhs.flags.inherit()}
                         }
                     }
                     Type::Array(a) if op == BinaryOperator::Index => {
+                        if idx < 0 { return err!(Runtime, "cannot index with negative index!"); }
+                        let idx = idx as usize;
+
                         if a.flags.contains(ArrayFlags::LEN_KNOWN) && idx >= a.len.max(1) { // allow accessing element 0 of 0-length arrays, just in case
                             return err!(Runtime, "array index out of range: {} >= {}", idx, a.len);
                         }
@@ -498,6 +506,9 @@ fn eval_expression(expr: &Expression, node_idx: ASTIdx, state: &mut EvalState, c
                         Value {val, type_: a.type_, flags: lhs.flags.inherit()}
                     }
                     Type::Slice(s) if op == BinaryOperator::Index => {
+                        if idx < 0 { return err!(Runtime, "cannot index with negative index!"); }
+                        let idx = idx as usize;
+
                         let stride = unsafe {(*s.type_).calculate_size()};
                         let blob = lhs.val.into_value(16, &mut context.memory)?;
                         let addr = blob.get_usize_prefix();
