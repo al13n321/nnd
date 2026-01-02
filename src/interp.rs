@@ -482,7 +482,7 @@ fn eval_expression(expr: &Expression, node_idx: ASTIdx, state: &mut EvalState, c
                         let addr_offset = isize::checked_add(addr as isize, idx * stride);
                         let addr_offset = match addr_offset {
                             Some(v) => v as usize,
-                            None => return err!(Runtime, "array size causes overflow"),
+                            None => return err!(Runtime, "array size or index is too big"),
                         };
                         if op == BinaryOperator::Index {
                             Value {val: AddrOrValueBlob::Addr(addr_offset), type_: p.type_, flags: lhs.flags.inherit()}
