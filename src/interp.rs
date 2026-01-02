@@ -471,10 +471,11 @@ fn eval_expression(expr: &Expression, node_idx: ASTIdx, state: &mut EvalState, c
             if op == BinaryOperator::Index || op == BinaryOperator::Slicify {
                 let b = to_basic(&rhs, &mut context.memory, "index with")?;
                 if b.is_f64() { return err!(TypeMismatch, "can't index with float"); }
-                let idx = b.cast_to_isize();
+                let idx = b.cast_to_usize();
                 let t = unsafe {&*lhs.type_};
                 return Ok(match &t.t {
                     Type::Pointer(p) => {
+                        let idx = b.cast_to_isize();
                         let addr = lhs.val.into_value(8, &mut context.memory)?.get_usize()?;
                         let stride = unsafe {(*p.type_).calculate_size()} as isize;
                         if stride == 0 { return err!(TypeMismatch, "array element type has size 0"); }
@@ -492,9 +493,6 @@ fn eval_expression(expr: &Expression, node_idx: ASTIdx, state: &mut EvalState, c
                         }
                     }
                     Type::Array(a) if op == BinaryOperator::Index => {
-                        if idx < 0 { return err!(Runtime, "cannot index with negative index!"); }
-                        let idx = idx as usize;
-
                         if a.flags.contains(ArrayFlags::LEN_KNOWN) && idx >= a.len.max(1) { // allow accessing element 0 of 0-length arrays, just in case
                             return err!(Runtime, "array index out of range: {} >= {}", idx, a.len);
                         }
@@ -506,9 +504,6 @@ fn eval_expression(expr: &Expression, node_idx: ASTIdx, state: &mut EvalState, c
                         Value {val, type_: a.type_, flags: lhs.flags.inherit()}
                     }
                     Type::Slice(s) if op == BinaryOperator::Index => {
-                        if idx < 0 { return err!(Runtime, "cannot index with negative index!"); }
-                        let idx = idx as usize;
-
                         let stride = unsafe {(*s.type_).calculate_size()};
                         let blob = lhs.val.into_value(16, &mut context.memory)?;
                         let addr = blob.get_usize_prefix();
