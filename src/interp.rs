@@ -487,7 +487,7 @@ fn eval_expression(expr: &Expression, node_idx: ASTIdx, state: &mut EvalState, c
                         if op == BinaryOperator::Index {
                             Value {val: AddrOrValueBlob::Addr(addr_offset), type_: p.type_, flags: lhs.flags.inherit()}
                         } else { // Slicify
-                            if idx < 0 { return err!(Runtime, "cannot index with negative index!"); }
+                            if idx < 0 { return err!(Runtime, "negative slice length"); }
                             let array_type = state.types.add_array(p.type_, Some(idx as usize), ArrayFlags::empty());
                             Value {val: AddrOrValueBlob::Addr(addr), type_: array_type, flags: lhs.flags.inherit()}
                         }
