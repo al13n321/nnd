@@ -479,7 +479,7 @@ fn eval_expression(expr: &Expression, node_idx: ASTIdx, state: &mut EvalState, c
                         let addr = lhs.val.into_value(8, &mut context.memory)?.get_usize()?;
                         let stride = unsafe {(*p.type_).calculate_size()} as isize;
                         if stride == 0 { return err!(TypeMismatch, "array element type has size 0"); }
-                        let addr_offset = isize::checked_add(addr as isize, idx * stride);
+                        let addr_offset = isize::checked_mul(idx, stride).flat_map(|res| isize::checked_add(addr as isize, res));
                         let addr_offset = match addr_offset {
                             Some(v) => v as usize,
                             None => return err!(Runtime, "array size or index is too big"),
@@ -542,7 +542,7 @@ fn eval_expression(expr: &Expression, node_idx: ASTIdx, state: &mut EvalState, c
                 let array_type = state.types.add_array(t1, Some(len), ArrayFlags::empty());
                 return Ok(Value {val: AddrOrValueBlob::Addr(addr1), type_: array_type, flags: ValueFlags::empty()});
             }
-            
+
             // String comparison.
             match op {
                 BinaryOperator::Eq | BinaryOperator::Ne | BinaryOperator::Gt | BinaryOperator::Lt | BinaryOperator::Ge | BinaryOperator::Le => {
@@ -574,7 +574,7 @@ fn eval_expression(expr: &Expression, node_idx: ASTIdx, state: &mut EvalState, c
                         if !(rhs_is_byte_array || rhs_is_c_string) {
                             return err!(TypeMismatch, "can't compare array to {}", unsafe {(*rhs.type_).t.kind_name()});
                         }
-                        
+
                         // Compare as byte arrays.
                         let as_blob = |mut val: Value, is_c_string: bool, memory: &mut CachedMemReader| -> Result<(ValueBlob, usize)> {
                             let t = unsafe {&*val.type_};
@@ -1731,7 +1731,7 @@ fn parse_expression(lex: &mut Lexer, expr: &mut Expression, outer_precedence: Pr
             _ => break,
         }
     }
-    
+
     Ok(node_idx)
 }
 
