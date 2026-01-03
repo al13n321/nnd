@@ -17,7 +17,16 @@ impl Expression {
 pub fn parse_watch_expression(s: &str) -> Result<Expression> {
     let mut lex = Lexer {input: InputStream {input: s, pos: 0}, next_tokens: Vec::new(), previous_token_end: 0, previous_dot: false};
     let mut expr = Expression {ast: Vec::new(), root: ASTIdx(0)};
-    let root = parse_expression(&mut lex, &mut expr, Precedence::Weakest)?;
+    let mut root = parse_expression(&mut lex, &mut expr, Precedence::Weakest)?;
+
+    while let Token::Char(',') = lex.peek(1)?.1 {
+        let (r, t) = lex.eat(1)?;
+        let mut node = ASTNode {range: expr.ast[root.0].range.start..r.end, children: vec![root], a: AST::Tuple};
+        node.children.push(parse_expression(&mut lex, &mut expr, Precedence::Weakest)?);
+        node.a = AST::BinaryOperator(BinaryOperator::Slicify);
+        expr.ast.push(node);
+        root = ASTIdx(expr.ast.len() - 1);
+    }
     // TODO: Allow format specifiers at the end of expression, e.g. ", x", ", rx" - more conveinent than .#x because no need for parens. Syntax seems unambiguous even in full Rust?
     expr.root = root;
     let (r, t) = lex.peek(1)?;
@@ -1727,17 +1736,6 @@ fn parse_expression(lex: &mut Lexer, expr: &mut Expression, outer_precedence: Pr
                 let node = ASTNode {range: expr.ast[node_idx.0].range.start..expr.ast[type_idx.0].range.end, children: vec![node_idx, type_idx], a: AST::TypeCast};
                 expr.ast.push(node);
                 node_idx = ASTIdx(expr.ast.len()-1);
-            }
-            Token::Char(',') => {
-                if outer_precedence >= Precedence::Field {
-                    break;
-                }
-                let (r, t) = lex.eat(1)?;
-                let mut node = ASTNode {range: expr.ast[node_idx.0].range.start..r.end, children: vec![node_idx], a: AST::Tuple};
-                node.children.push(parse_expression(lex, expr, Precedence::Weakest)?);
-                node.a = AST::BinaryOperator(BinaryOperator::Slicify);
-                expr.ast.push(node);
-                node_idx = ASTIdx(expr.ast.len() - 1);
             }
             _ => break,
         }
