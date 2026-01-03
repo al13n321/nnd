@@ -512,6 +512,14 @@ fn eval_expression(expr: &Expression, node_idx: ASTIdx, state: &mut EvalState, c
                         };
                         Value {val, type_: a.type_, flags: lhs.flags.inherit()}
                     }
+                    Type::Array(a) if op == BinaryOperator::Slicify => {
+                        let element_type = &unsafe {& *a.type_ }.t;
+                        match element_type {
+                            Type::Pointer(_) => {},
+                            _ => return err!(TypeMismatch, "only array of pointers can be slicified"),
+                        }
+                        return err!(Runtime, "todo");
+                    }
                     Type::Slice(s) if op == BinaryOperator::Index => {
                         let stride = unsafe {(*s.type_).calculate_size()};
                         let blob = lhs.val.into_value(16, &mut context.memory)?;
