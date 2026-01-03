@@ -17,7 +17,16 @@ impl Expression {
 pub fn parse_watch_expression(s: &str) -> Result<Expression> {
     let mut lex = Lexer {input: InputStream {input: s, pos: 0}, next_tokens: Vec::new(), previous_token_end: 0, previous_dot: false};
     let mut expr = Expression {ast: Vec::new(), root: ASTIdx(0)};
-    let root = parse_expression(&mut lex, &mut expr, Precedence::Weakest)?;
+    let mut root = parse_expression(&mut lex, &mut expr, Precedence::Weakest)?;
+
+    while let Token::Char(',') = lex.peek(1)?.1 {
+        let (r, t) = lex.eat(1)?;
+        let mut node = ASTNode {range: expr.ast[root.0].range.start..r.end, children: vec![root], a: AST::Tuple};
+        node.children.push(parse_expression(&mut lex, &mut expr, Precedence::Weakest)?);
+        node.a = AST::BinaryOperator(BinaryOperator::Slicify);
+        expr.ast.push(node);
+        root = ASTIdx(expr.ast.len() - 1);
+    }
     // TODO: Allow format specifiers at the end of expression, e.g. ", x", ", rx" - more conveinent than .#x because no need for parens. Syntax seems unambiguous even in full Rust?
     expr.root = root;
     let (r, t) = lex.peek(1)?;
@@ -502,6 +511,14 @@ fn eval_expression(expr: &Expression, node_idx: ASTIdx, state: &mut EvalState, c
                             AddrOrValueBlob::Blob(blob) => AddrOrValueBlob::Blob(blob.bit_range(idx * stride * 8, stride * 8)?),
                         };
                         Value {val, type_: a.type_, flags: lhs.flags.inherit()}
+                    }
+                    Type::Array(a) if op == BinaryOperator::Slicify => {
+                        let element_type = &unsafe {& *a.type_ }.t;
+                        match element_type {
+                            Type::Pointer(_) => {},
+                            _ => return err!(TypeMismatch, "only array of pointers can be slicified"),
+                        }
+                        return err!(Runtime, "todo");
                     }
                     Type::Slice(s) if op == BinaryOperator::Index => {
                         let stride = unsafe {(*s.type_).calculate_size()};
