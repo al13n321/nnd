@@ -643,8 +643,6 @@ impl EvalContext<'_> {
 bitflags! { pub struct ValueFlags: u16 {
     // Ignore pretty printers. Affects formatting, field access, dereferencing (for smart pointers), indexing (for containers).
     const RAW = 0x1;
-    // Force prettified value where normally raw value would be used (e.g. typeof(x.#p)). Mutually exclusive with RAW.
-    const PRETTY = 0x20;
 
     const HEX = 0x2;
     const BIN = 0x4;
@@ -655,9 +653,12 @@ bitflags! { pub struct ValueFlags: u16 {
     // When formatting value, print struct name. Used after automatic downcasting. Not inherited by fields.
     const SHOW_TYPE_NAME = 0x10;
 
+    // Force prettified value where normally raw value would be used (e.g. typeof(x.#p)). Mutually exclusive with RAW.
+    const PRETTY = 0x20;
+
     // Interpret integers as big-endian.
     // (The implementation of this is pretty error-prone, it's easy to miss a code site that needs to check this flag and flip endianness. Idk what to do about it.)
-    const BIG_ENDIAN = 0x20;
+    const BIG_ENDIAN = 0x40;
 }}
 impl ValueFlags {
     pub fn inherit(self) -> Self { self & !Self::SHOW_TYPE_NAME }
