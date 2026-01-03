@@ -643,18 +643,17 @@ impl EvalContext<'_> {
 bitflags! { pub struct ValueFlags: u16 {
     // Ignore pretty printers. Affects formatting, field access, dereferencing (for smart pointers), indexing (for containers).
     const RAW = 0x1;
+    // Force prettified value where normally raw value would be used (e.g. typeof(x.#p)). Mutually exclusive with RAW.
+    const PRETTY = 0x2;
 
-    const HEX = 0x2;
-    const BIN = 0x4;
+    const HEX = 0x4;
+    const BIN = 0x8;
 
     // Similar to RAW, disables automatic unwrapping of single-field structs by prettifier. Doesn't do any of the other RAW things.
     // Can't be changed by the user. Used for structs produced by MetaType/MetaField/etc.
-    const NO_UNWRAPPING_INTERNAL = 0x8;
+    const NO_UNWRAPPING_INTERNAL = 0x10;
     // When formatting value, print struct name. Used after automatic downcasting. Not inherited by fields.
-    const SHOW_TYPE_NAME = 0x10;
-
-    // Force prettified value where normally raw value would be used (e.g. typeof(x.#p)). Mutually exclusive with RAW.
-    const PRETTY = 0x20;
+    const SHOW_TYPE_NAME = 0x20;
 
     // Interpret integers as big-endian.
     // (The implementation of this is pretty error-prone, it's easy to miss a code site that needs to check this flag and flip endianness. Idk what to do about it.)
