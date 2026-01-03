@@ -1728,6 +1728,17 @@ fn parse_expression(lex: &mut Lexer, expr: &mut Expression, outer_precedence: Pr
                 expr.ast.push(node);
                 node_idx = ASTIdx(expr.ast.len()-1);
             }
+            Token::Char(',') => {
+                if outer_precedence >= Precedence::Field {
+                    break;
+                }
+                let (r, t) = lex.eat(1)?;
+                let mut node = ASTNode {range: expr.ast[node_idx.0].range.start..r.end, children: vec![node_idx], a: AST::Tuple};
+                node.children.push(parse_expression(lex, expr, Precedence::Weakest)?);
+                node.a = AST::BinaryOperator(BinaryOperator::Slicify);
+                expr.ast.push(node);
+                node_idx = ASTIdx(expr.ast.len() - 1);
+            }
             _ => break,
         }
     }
