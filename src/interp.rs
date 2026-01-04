@@ -71,6 +71,10 @@ pub fn adjust_expression_for_appending_child_path(expr_str: &str) -> Result<Stri
             }
             true
         }
+        // For slicify with comma, we transform it into conventional slicify.
+        // Simply truncating the slicify would work the same way (as currently, slicify cannot cut
+        // out from the start), but this retains information the user had written out and, if/when
+        // that is added, will support it
         AST::BinaryOperator(BinaryOperator::SlicifyComma) => {
             let lhs = &expr_str[..(node.range.end - 1)];
             let slice_amount = &expr.ast[expr.ast[expr.root.0].children[1].0];
