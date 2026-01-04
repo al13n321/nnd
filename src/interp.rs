@@ -19,15 +19,19 @@ pub fn parse_watch_expression(s: &str) -> Result<Expression> {
     let mut expr = Expression {ast: Vec::new(), root: ASTIdx(0)};
     let mut root = parse_expression(&mut lex, &mut expr, Precedence::Weakest)?;
 
-    while let Token::Char(',') = lex.peek(1)?.1 {
+    if let Token::Char(',') = lex.peek(1)?.1 {
+        // TODO: Allow format specifiers at the end of expression, e.g. ", x", ", rx" - more conveinent than .#x because no need for parens. Syntax seems unambiguous even in full Rust?
+        // Currently assumes that any trailing `,` represents a sliceify
         let (r, t) = lex.eat(1)?;
         let mut node = ASTNode {range: expr.ast[root.0].range.start..r.end, children: vec![root], a: AST::Tuple};
         node.children.push(parse_expression(&mut lex, &mut expr, Precedence::Weakest)?);
-        node.a = AST::BinaryOperator(BinaryOperator::Slicify);
+        node.a = AST::BinaryOperator(BinaryOperator::SlicifyComma);
         expr.ast.push(node);
         root = ASTIdx(expr.ast.len() - 1);
     }
-    // TODO: Allow format specifiers at the end of expression, e.g. ", x", ", rx" - more conveinent than .#x because no need for parens. Syntax seems unambiguous even in full Rust?
+    if let Token::Char(',') = lex.peek(1)?.1 {
+        return err!(Syntax, "slicify operator cannot be chained.");
+    }
     expr.root = root;
     let (r, t) = lex.peek(1)?;
     if !t.is_eof() {
@@ -67,6 +71,12 @@ pub fn adjust_expression_for_appending_child_path(expr_str: &str) -> Result<Stri
             }
             true
         }
+        AST::BinaryOperator(BinaryOperator::SlicifyComma) => {
+            let lhs = &expr_str[..(node.range.end - 1)];
+            let slice_amount = &expr.ast[expr.ast[expr.root.0].children[1].0];
+            let rhs = &expr_str[(slice_amount.range.start - 1)..slice_amount.range.end];
+            return Ok(format!("{}.[{}]", lhs, rhs));
+        },
 
         // These need parentheses.
         AST::UnaryOperator(_) | AST::BinaryOperator(_) | AST::TypeCast | AST::While | AST::For(_) | AST::If | AST::Let {..} | AST::FunctionDefinition {..} | AST::StructDefinition {..} => true,
@@ -477,7 +487,7 @@ fn eval_expression(expr: &Expression, node_idx: ASTIdx, state: &mut EvalState, c
             }
             let mut rhs = eval_expression(expr, node.children[1], state, context, false)?;
             follow_references_and_prettify(&mut rhs, None, false, state, context)?;
-            if op == BinaryOperator::Index || op == BinaryOperator::Slicify {
+            if op == BinaryOperator::Index || op == BinaryOperator::Slicify || op == BinaryOperator::SlicifyComma {
                 let b = to_basic(&rhs, &mut context.memory, "index with")?;
                 if b.is_f64() { return err!(TypeMismatch, "can't index with float"); }
                 let idx = b.cast_to_usize();
@@ -511,14 +521,6 @@ fn eval_expression(expr: &Expression, node_idx: ASTIdx, state: &mut EvalState, c
                             AddrOrValueBlob::Blob(blob) => AddrOrValueBlob::Blob(blob.bit_range(idx * stride * 8, stride * 8)?),
                         };
                         Value {val, type_: a.type_, flags: lhs.flags.inherit()}
-                    }
-                    Type::Array(a) if op == BinaryOperator::Slicify => {
-                        let element_type = &unsafe {& *a.type_ }.t;
-                        match element_type {
-                            Type::Pointer(_) => {},
-                            _ => return err!(TypeMismatch, "only array of pointers can be slicified"),
-                        }
-                        return err!(Runtime, "todo");
                     }
                     Type::Slice(s) if op == BinaryOperator::Index => {
                         let stride = unsafe {(*s.type_).calculate_size()};
@@ -1034,6 +1036,7 @@ enum BinaryOperator {
 
     Index, // [n]
     Slicify, // .[n]
+    SlicifyComma, // , n - at end of watch expression
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
@@ -1793,6 +1796,7 @@ fn binary_operator_precedence(op: BinaryOperator) -> Precedence {
         BinaryOperator::Range => Precedence::Range,
         BinaryOperator::Index => Precedence::CallOrIndex,
         BinaryOperator::Slicify => Precedence::Field,
+        BinaryOperator::SlicifyComma => Precedence::Weakest,
     }
 }
 
