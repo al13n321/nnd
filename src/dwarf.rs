@@ -793,10 +793,10 @@ macro_rules! dwarf_field_mask_constants {
 //
 //     fn layout() -> AttributeStructLayout {
 //         AttributeStructLayout {fields: vec![
-//             (offsetof!(Self, range_lists) as u32, DW_AT_ranges, AttributeType::RangeLists),
-//             (offsetof!(Self, low_pc) as u32, DW_AT_low_pc, AttributeType::Address),
-//             (offsetof!(Self, high_pc_addr) as u32, DW_AT_high_pc, AttributeType::Address),
-//             (offsetof!(Self, high_pc_num) as u32, DW_AT_high_pc, AttributeType::Unsigned),
+//             (mem::offset_of!(Self, range_lists) as u32, DW_AT_ranges, AttributeType::RangeLists),
+//             (mem::offset_of!(Self, low_pc) as u32, DW_AT_low_pc, AttributeType::Address),
+//             (mem::offset_of!(Self, high_pc_addr) as u32, DW_AT_high_pc, AttributeType::Address),
+//             (mem::offset_of!(Self, high_pc_num) as u32, DW_AT_high_pc, AttributeType::Unsigned),
 //         ]}
 //     }
 // }
