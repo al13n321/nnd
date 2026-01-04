@@ -2552,12 +2552,12 @@ impl Debugger {
         //  3. [The data breakpoint was removed, we shifted the exec breakpoint from hw bp 1 to 0, and are going to set dr0 = valid executable address, then dr7 to enable only bp 0. So we...]
         //     Set dr0 to a valid executable address (same as dr1 in step 1) - and ptrace returns EINVAL. What?
         //     (Is it because the previous dr0 address was unmapped or because the new dr0 == dr1? I didn't check. Either way the solution to clear dr7.)
-        unsafe {ptrace(PTRACE_POKEUSER, tid, (offsetof!(libc::user, u_debugreg) + 7*8) as u64, dr7)? };
+        unsafe {ptrace(PTRACE_POKEUSER, tid, (mem::offset_of!(libc::user, u_debugreg) + 7*8) as u64, dr7)? };
         let mut assigned_dr7 = dr7; // last successfully written dr7 value
 
         for i in 0..4 {
             if let Some((addr, d7)) = Self::get_debug_register_values_for_hardware_breakpoint(&self.hardware_breakpoints[i], i, tid) {
-                unsafe { ptrace(PTRACE_POKEUSER, tid, (offsetof!(libc::user, u_debugreg) + i * 8) as u64, addr)? };
+                unsafe { ptrace(PTRACE_POKEUSER, tid, (mem::offset_of!(libc::user, u_debugreg) + i * 8) as u64, addr)? };
                 dr7 |= d7;
             }
         }
@@ -2582,7 +2582,7 @@ impl Debugger {
 
             // Try to activate all enabled breakpoints.
             let mut error: Option<Error>;
-            match unsafe { ptrace(PTRACE_POKEUSER, tid, (offsetof!(libc::user, u_debugreg) + 7*8) as u64, dr7) } {
+            match unsafe { ptrace(PTRACE_POKEUSER, tid, (mem::offset_of!(libc::user, u_debugreg) + 7*8) as u64, dr7) } {
                 Ok(_) => return Ok(()),
                 Err(e) if e.is_io_invalid_input() && attempts < 6 => error = Some(e),
                 Err(e) => return Err(e),
@@ -2597,7 +2597,7 @@ impl Debugger {
                     if single_dr7 == dr7 {
                         // There's only one enabled breakpoint, we already tried to activate it above and got EINVAL, no need to try again.
                     } else {
-                        match unsafe { ptrace(PTRACE_POKEUSER, tid, (offsetof!(libc::user, u_debugreg) + 7*8) as u64, single_dr7) } {
+                        match unsafe { ptrace(PTRACE_POKEUSER, tid, (mem::offset_of!(libc::user, u_debugreg) + 7*8) as u64, single_dr7) } {
                             Ok(_) => {
                                 assigned_dr7 = single_dr7;
                                 new_dr7 |= d7;
@@ -2890,13 +2890,13 @@ impl Debugger {
         // So currently we don't check for 0xcc here. If it turns out that we have to do it, we'll have to ensure that the original_byte <-> 0xcc memory writes only happen when all threads are stopped (likely in handle_breakpoints()).
         // Possibly even that would be insufficient because maybe a SIGTRAP may be queued behind another type of stop, then get delivered after we resume threads; or maybe that's impossible, I haven't checked.
 
-        let dr6 = unsafe { ptrace(PTRACE_PEEKUSER, tid, offsetof!(libc::user, u_debugreg) as u64 + 6*8, 0)? };
+        let dr6 = unsafe { ptrace(PTRACE_PEEKUSER, tid, mem::offset_of!(libc::user, u_debugreg) as u64 + 6*8, 0)? };
         let stopped_on_hw_breakpoint = dr6 & 15 != 0; // may be a data breakpoint
         if stopped_on_hw_breakpoint {
             // In case it's a stale breakpoint.
             self.set_debug_registers_for_thread(tid)?;
             // Clear the 'breakpoint was hit' bits because neither the CPU nor Linux will do it for us.
-            unsafe { ptrace(PTRACE_POKEUSER, tid, (offsetof!(libc::user, u_debugreg) + 6 * 8) as u64, (dr6 & !15) as u64)? };
+            unsafe { ptrace(PTRACE_POKEUSER, tid, (mem::offset_of!(libc::user, u_debugreg) + 6 * 8) as u64, (dr6 & !15) as u64)? };
         }
 
         // Need to be careful to correctly handle being stopped for multiple reasons at once:
@@ -2953,7 +2953,7 @@ impl Debugger {
         if stopped_on_sw_breakpoint && !is_debug_trap {
             // Revert RIP to the start of the instruction that we overwrote with 0xcc.
             regs.set(RegisterIdx::Rip, addr as u64, false);
-            unsafe { ptrace(PTRACE_POKEUSER, tid, offsetof!(libc::user, regs.rip) as u64, addr as u64)? };
+            unsafe { ptrace(PTRACE_POKEUSER, tid, mem::offset_of!(libc::user, regs.rip) as u64, addr as u64)? };
         }
 
         let is_user_signal = si_code <= 0;
@@ -3170,7 +3170,7 @@ impl Debugger {
             }
 
             // Disable hardware breakpoints for this thread. (Do this unconditionally because threads may have leftover breakpoints that are not in self.hardware_breakpoints or self.breakpoint_locations anymore.)
-            if let Err(e) = unsafe { ptrace(PTRACE_POKEUSER, tid, (offsetof!(libc::user, u_debugreg) + 7*8) as u64, 1u64 << 10) } {
+            if let Err(e) = unsafe { ptrace(PTRACE_POKEUSER, tid, (mem::offset_of!(libc::user, u_debugreg) + 7*8) as u64, 1u64 << 10) } {
                 eprintln!("warning: detach failed to clear hardware breakpoints for thread {}: {}", tid, e);
             }
 

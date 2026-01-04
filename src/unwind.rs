@@ -518,7 +518,7 @@ impl UnwindInfo {
     }
 
     fn step_through_sig_return(memory: &mut CachedMemReader, regs: &mut Registers) -> Result<Registers> {
-        let offset = regs.get(RegisterIdx::Rsp)?.0 as usize + offsetof!(libc::ucontext_t, uc_mcontext);
+        let offset = regs.get(RegisterIdx::Rsp)?.0 as usize + mem::offset_of!(libc::ucontext_t, uc_mcontext);
         let mut mcontext: libc::mcontext_t;
         unsafe {
             mcontext = mem::zeroed();

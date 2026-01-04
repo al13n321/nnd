@@ -550,10 +550,10 @@ impl AttributeStructLayout {
             match attr_type {
                 AttributeType::Ranges => {
                     assert!(!mem::replace(&mut saw_ranges, true));
-                    self.fields[i] = (offset + offsetof!(DwarfRanges, ranges) as u32, DW_AT_ranges, AttributeType::Ranges);
-                    self.fields.push((offset + offsetof!(DwarfRanges, low_pc) as u32, DW_AT_low_pc, AttributeType::Ranges));
-                    self.fields.push((offset + offsetof!(DwarfRanges, high_pc) as u32, DW_AT_high_pc, AttributeType::Ranges));
-                    self.fields.push((offset + offsetof!(DwarfRanges, entry_pc) as u32, DW_AT_entry_pc, AttributeType::Ranges));
+                    self.fields[i] = (offset + mem::offset_of!(DwarfRanges, ranges) as u32, DW_AT_ranges, AttributeType::Ranges);
+                    self.fields.push((offset + mem::offset_of!(DwarfRanges, low_pc) as u32, DW_AT_low_pc, AttributeType::Ranges));
+                    self.fields.push((offset + mem::offset_of!(DwarfRanges, high_pc) as u32, DW_AT_high_pc, AttributeType::Ranges));
+                    self.fields.push((offset + mem::offset_of!(DwarfRanges, entry_pc) as u32, DW_AT_entry_pc, AttributeType::Ranges));
                 }
                 AttributeType::CodeLocation => {
                     assert!(!mem::replace(&mut saw_location, true));
@@ -562,9 +562,9 @@ impl AttributeStructLayout {
                         DW_AT_call_file => [DW_AT_call_file, DW_AT_call_line, DW_AT_call_column],
                         _ => panic!("unexpected attribute name for CodeLocation field: {}", attr_name),
                     };
-                    self.fields[i] = (offset + offsetof!(DwarfCodeLocation, file) as u32, attrs[0], AttributeType::Unsigned);
-                    self.fields.push((offset + offsetof!(DwarfCodeLocation, line) as u32, attrs[1], AttributeType::Unsigned));
-                    self.fields.push((offset + offsetof!(DwarfCodeLocation, column) as u32, attrs[2], AttributeType::Unsigned));
+                    self.fields[i] = (offset + mem::offset_of!(DwarfCodeLocation, file) as u32, attrs[0], AttributeType::Unsigned);
+                    self.fields.push((offset + mem::offset_of!(DwarfCodeLocation, line) as u32, attrs[1], AttributeType::Unsigned));
+                    self.fields.push((offset + mem::offset_of!(DwarfCodeLocation, column) as u32, attrs[2], AttributeType::Unsigned));
                 }
                 AttributeType::SpecificationOrAbstractOrigin => {
                     assert!(!mem::replace(&mut saw_specification, true));
@@ -822,10 +822,10 @@ macro_rules! dwarf_struct {
 
             pub fn layout() -> AttributeStructLayout {
                 AttributeStructLayout {
-                    flags_offset: offsetof!(Self, fields) as u32,
+                    flags_offset: std::mem::offset_of!(Self, fields) as u32,
                     fields: vec![$(
                         (
-                            offsetof!(Self, $field) as u32,
+                            std::mem::offset_of!(Self, $field) as u32,
                             gimli::constants::$dw_at,
                             dwarf::AttributeType::$attribute_type,
                         ),

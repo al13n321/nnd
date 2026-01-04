@@ -240,16 +240,6 @@ impl Drop for INotifyFD {
     }
 }
 
-// Usage: offsetof!(MyStruct, some_field)
-// Works with nested structs too: offsetof!(MyStruct, some_field.some_subfield)
-#[macro_export]
-macro_rules! offsetof {
-    ($t:ty, $f:ident $(. $p:ident)*) => (
-        // Maybe this is UB, idk. Still seems better than pulling a whole crate for this.
-        unsafe {std::mem::transmute::<_, usize>(&std::mem::transmute::<_, &$t>(8usize).$f$(.$p)*) - 8}
-    )
-}
-
 // A thing for limiting the number of warnings printed from each line of source code.
 // Usage: if limiter.check(line!()) { eprintln!("warning: ...") }
 pub struct Limiter {
