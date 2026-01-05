@@ -30,7 +30,7 @@ pub fn parse_watch_expression(s: &str) -> Result<Expression> {
         root = ASTIdx(expr.ast.len() - 1);
     }
     if let Token::Char(',') = lex.peek(1)?.1 {
-        return err!(Syntax, "slicify operator cannot be chained.");
+        return err!(Syntax, "operator ',' cannot be chained; for 2d array use: &ptr.[m], n");
     }
     expr.root = root;
     let (r, t) = lex.peek(1)?;
