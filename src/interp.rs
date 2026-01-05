@@ -57,6 +57,16 @@ pub fn eval_parsed_expression(expr: &Expression, state: &mut EvalState, context:
 pub fn adjust_expression_for_appending_child_path(expr_str: &str) -> Result<String> {
     let expr = parse_watch_expression(expr_str)?;
     let node = &expr.ast[expr.root.0];
+
+    let (unwrapped_root, postfix) = match &node.a {
+        AST::BinaryOperator(BinaryOperator::Assign) => {
+            if let AST::Variable {name, quoted, from_any_frame} = &expr.ast[node.children[0].0].a {
+                if !quoted && !from_any_frame {
+                    return Ok(name.clone());
+                }
+            }
+        }
+    };
     let parentheses = match &node.a {
         // These don't need parentheses.
         AST::Literal(_) | AST::Variable {..} | AST::Field {..} | AST::Array | AST::Tuple | AST::StructExpression(_) | AST::TupleIndexing(_) | AST::Call(_) | AST::Block | AST::TypeInfo => false,
@@ -81,7 +91,7 @@ pub fn adjust_expression_for_appending_child_path(expr_str: &str) -> Result<Stri
             let lhs = &expr_str[..(node.range.end - 1)];
             let slice_amount = &expr.ast[expr.ast[expr.root.0].children[1].0];
             let rhs = &expr_str[(slice_amount.range.start - 1)..slice_amount.range.end];
-            return Ok(format!("{}.[{}]", lhs, rhs));
+            return Ok(format!("({}).[{}]", lhs, rhs));
         },
 
         // These need parentheses.
