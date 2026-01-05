@@ -23,9 +23,11 @@ pub fn parse_watch_expression(s: &str) -> Result<Expression> {
         // TODO: Allow format specifiers at the end of expression, e.g. ", x", ", rx" - more conveinent than .#x because no need for parens. Syntax seems unambiguous even in full Rust?
         // Currently assumes that any trailing `,` represents a sliceify
         let (r, t) = lex.eat(1)?;
-        let mut node = ASTNode {range: expr.ast[root.0].range.start..r.end, children: vec![root], a: AST::Tuple};
-        node.children.push(parse_expression(&mut lex, &mut expr, Precedence::Weakest)?);
-        node.a = AST::BinaryOperator(BinaryOperator::SlicifyComma);
+        let node = ASTNode {
+            range: expr.ast[root.0].range.start..r.end,
+            children: vec![root, parse_expression(&mut lex, &mut expr, Precedence::Weakest)?],
+            a: AST::BinaryOperator(BinaryOperator::SlicifyComma),
+        };
         expr.ast.push(node);
         root = ASTIdx(expr.ast.len() - 1);
     }
