@@ -269,7 +269,7 @@ General info:
  * Field access: 'my_struct.my_field'. Pointers are auto-dereferenced: 'my_ptr.my_field'. There's no '->' operator.
  * Fields can also be accessed by index: 'my_struct.3' (useful when field names are empty or duplicate).
  * 'p.[n]' to turn pointer 'p' to array of length 'n'. E.g. 'my_string.ptr.[my_string.len]'.
- * `p, n` can also turn a pointer 'p' to array of length 'n', if it is the final expression in the watch. E.g. 'my_string.ptr, my_string.len', vs. '(my_string.ptr, my_string.len)[2]'
+ * `p, n` also turns a pointer 'p' to array of length 'n'. (Can't be used as subexpression, use the other syntax in that case. E.g. `&p.[n] + 42`, not `&(p, n) + 42`.)
  * 'begin..end' to turn a pair of pointers to the array [begin, end). E.g. 'my_vector.begin..my_vector.end'.
  * '^x' looks for variable x in all stack frames.
  * 'var(x)' shows additional information about variable x, e.g. its declaration site.
