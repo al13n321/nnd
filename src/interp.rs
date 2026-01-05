@@ -23,9 +23,10 @@ pub fn parse_watch_expression(s: &str) -> Result<Expression> {
         // TODO: Allow format specifiers at the end of expression, e.g. ", x", ", rx" - more conveinent than .#x because no need for parens. Syntax seems unambiguous even in full Rust?
         // Currently assumes that any trailing `,` represents a sliceify
         let (r, t) = lex.eat(1)?;
+        let amount_expr = parse_expression(&mut lex, &mut expr, Precedence::Weakest)?;
         let node = ASTNode {
-            range: expr.ast[root.0].range.start..r.end,
-            children: vec![root, parse_expression(&mut lex, &mut expr, Precedence::Weakest)?],
+            range: expr.ast[root.0].range.start..expr.ast[amount_expr.0].range.end,
+            children: vec![root, amount_expr],
             a: AST::BinaryOperator(BinaryOperator::SlicifyComma),
         };
         expr.ast.push(node);
@@ -35,6 +36,12 @@ pub fn parse_watch_expression(s: &str) -> Result<Expression> {
         return err!(Syntax, "operator ',' cannot be chained; for 2d array use: &ptr.[m], n");
     }
     expr.root = root;
+
+    let root_range = &expr.ast[expr.root.0].range;
+    let is_whitespace = |c: char| c == ' ' || c == '\n' || c == '\r' || c == '\t';
+    debug_assert_eq!(root_range.start, s.chars().take_while(|c| is_whitespace(*c)).count(), "AST root is not encapsulating entire string at start! String: {}, Range start: {}", s, root_range.start);
+    debug_assert!(s[root_range.end..].chars().all(|c| is_whitespace(c)), "AST root is not encapsulating entire string at end! String: {}, Range end: {}", s, root_range.end);
+
     let (r, t) = lex.peek(1)?;
     if !t.is_eof() {
         return err!(Syntax, "unexpected {:?} after expression at {}", t, r.start);
@@ -58,15 +65,6 @@ pub fn adjust_expression_for_appending_child_path(expr_str: &str) -> Result<Stri
     let expr = parse_watch_expression(expr_str)?;
     let node = &expr.ast[expr.root.0];
 
-    let (unwrapped_root, postfix) = match &node.a {
-        AST::BinaryOperator(BinaryOperator::Assign) => {
-            if let AST::Variable {name, quoted, from_any_frame} = &expr.ast[node.children[0].0].a {
-                if !quoted && !from_any_frame {
-                    return Ok(name.clone());
-                }
-            }
-        }
-    };
     let parentheses = match &node.a {
         // These don't need parentheses.
         AST::Literal(_) | AST::Variable {..} | AST::Field {..} | AST::Array | AST::Tuple | AST::StructExpression(_) | AST::TupleIndexing(_) | AST::Call(_) | AST::Block | AST::TypeInfo => false,
@@ -88,9 +86,10 @@ pub fn adjust_expression_for_appending_child_path(expr_str: &str) -> Result<Stri
         // out from the start), but this retains information the user had written out and, if/when
         // that is added, will support it
         AST::BinaryOperator(BinaryOperator::SlicifyComma) => {
-            let lhs = &expr_str[..(node.range.end - 1)];
+            let what_to_slice = &expr.ast[expr.ast[expr.root.0].children[0].0];
+            let lhs = &expr_str[what_to_slice.range.clone()];
             let slice_amount = &expr.ast[expr.ast[expr.root.0].children[1].0];
-            let rhs = &expr_str[(slice_amount.range.start - 1)..slice_amount.range.end];
+            let rhs = &expr_str[slice_amount.range.clone()];
             return Ok(format!("({}).[{}]", lhs, rhs));
         },
 
@@ -1172,10 +1171,10 @@ impl<'a> Lexer<'a> {
                 return Ok((r.clone(), t));
             }
 
+            let start = self.input.pos;
             let c = match self.input.eat() {
                 None => return Ok((self.input.pos..self.input.pos, &Token::Eof)),
                 Some(c) => c };
-            let start = self.input.pos;
             let previous_dot = mem::take(&mut self.previous_dot);
             let token = match c {
                 ' ' | '\t' | '\n' | '\r' => continue,
@@ -1640,6 +1639,8 @@ fn parse_expression(lex: &mut Lexer, expr: &mut Expression, outer_precedence: Pr
             match t {
                 Token::Char(')') => { // expression in parens
                     replace = Some(e);
+                    expr.ast[e.0].range.start -= 1;
+                    expr.ast[e.0].range.end += 1;
                     AST::Tuple // ignored
                 }
                 Token::Char(',') => { // tuple
@@ -1649,6 +1650,7 @@ fn parse_expression(lex: &mut Lexer, expr: &mut Expression, outer_precedence: Pr
                         node.children.push(parse_expression(lex, expr, Precedence::Weakest)?);
                         if lex.eat_if(|t| t.is_char(','))?.is_none() {
                             lex.expect("')'", |t| t.is_char(')'))?;
+                            node.range.end = lex.previous_token_end;
                             break;
                         }
                     }
@@ -1766,6 +1768,7 @@ fn parse_expression(lex: &mut Lexer, expr: &mut Expression, outer_precedence: Pr
             }
             _ => break,
         }
+        expr.ast[node_idx.0].range.end = lex.previous_token_end;
     }
 
     Ok(node_idx)
