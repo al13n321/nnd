@@ -39,7 +39,7 @@ pub fn parse_watch_expression(s: &str) -> Result<Expression> {
 
     let root_range = &expr.ast[expr.root.0].range;
     let is_whitespace = |c: char| c == ' ' || c == '\n' || c == '\r' || c == '\t';
-    debug_assert_eq!(root_range.start, s.chars().take_while(|c| is_whitespace(*c)).count(), "AST root is not encapsulating entire string at start! String: {}, Range start: {}", s, root_range.start);
+    debug_assert!(s[..root_range.start].chars().all(|c| is_whitespace(c)), "AST root is not encapsulating entire string at start! String: {}, Range start: {}", s, root_range.start);
     debug_assert!(s[root_range.end..].chars().all(|c| is_whitespace(c)), "AST root is not encapsulating entire string at end! String: {}, Range end: {}", s, root_range.end);
 
     let (r, t) = lex.peek(1)?;
@@ -1467,7 +1467,7 @@ fn parse_type(lex: &mut Lexer, expr: &mut Expression) -> Result<ASTIdx> {
 
 fn parse_expression(lex: &mut Lexer, expr: &mut Expression, outer_precedence: Precedence) -> Result<ASTIdx> {
     let (range, token) = lex.eat(1)?;
-    let mut node = ASTNode {range, children: Vec::new(), a: AST::Tuple};
+    let mut node = ASTNode {range: range.clone(), children: Vec::new(), a: AST::Tuple};
     let mut replace: Option<ASTIdx> = None; // ignore `node` and use this node as the initial expression
     node.a = match token {
         Token::Literal(value) => AST::Literal(value),
@@ -1639,8 +1639,8 @@ fn parse_expression(lex: &mut Lexer, expr: &mut Expression, outer_precedence: Pr
             match t {
                 Token::Char(')') => { // expression in parens
                     replace = Some(e);
-                    expr.ast[e.0].range.start -= 1;
-                    expr.ast[e.0].range.end += 1;
+                    expr.ast[e.0].range.start = range.start;
+                    expr.ast[e.0].range.end = r.end;
                     AST::Tuple // ignored
                 }
                 Token::Char(',') => { // tuple
