@@ -1625,20 +1625,7 @@ fn parse_expression(lex: &mut Lexer, expr: &mut Expression, outer_precedence: Pr
                     expr.ast[e.0].flags.insert(ASTNodeFlags::HAS_PARENS);
                     AST::Tuple // ignored
                 }
-                Token::Char(',') => { // tuple
-                    lex.eat(1)?;
-                    node.children.push(e);
-                    while lex.eat_if(|t| t.is_char(')'))?.is_none() {
-                        node.children.push(parse_expression(lex, expr, Precedence::Weakest)?);
-                        if lex.eat_if(|t| t.is_char(','))?.is_none() {
-                            lex.expect("')'", |t| t.is_char(')'))?;
-                            node.range.end = lex.previous_token_end;
-                            break;
-                        }
-                    }
-                    AST::Tuple
-                }
-                _ => return err!(Syntax, "expected ',' or ')', got {:?} at {}", t, r.start),
+                _ => return err!(Syntax, "expected or ')', got {:?} at {}", t, r.start),
             }
         }
         Token::Char('[') => {
