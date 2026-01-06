@@ -18,25 +18,7 @@ impl Expression {
 pub fn parse_watch_expression(s: &str) -> Result<Expression> {
     let mut lex = Lexer {input: InputStream {input: s, pos: 0}, next_tokens: Vec::new(), previous_token_end: 0, previous_dot: false};
     let mut expr = Expression {ast: Vec::new(), root: ASTIdx(0)};
-    let mut root = parse_expression(&mut lex, &mut expr, Precedence::Weakest)?;
-
-    if let Token::Char(',') = lex.peek(1)?.1 {
-        // TODO: Allow format specifiers at the end of expression, e.g. ", x", ", rx" - more conveinent than .#x because no need for parens. Syntax seems unambiguous even in full Rust?
-        // Currently assumes that any trailing `,` represents a sliceify
-        let (r, t) = lex.eat(1)?;
-        let amount_expr = parse_expression(&mut lex, &mut expr, Precedence::Weakest)?;
-        let node = ASTNode {
-            range: expr.ast[root.0].range.start..expr.ast[amount_expr.0].range.end,
-            children: vec![root, amount_expr],
-            a: AST::BinaryOperator(BinaryOperator::SlicifyComma),
-            flags: ASTNodeFlags::empty(),
-        };
-        expr.ast.push(node);
-        root = ASTIdx(expr.ast.len() - 1);
-    }
-    if let Token::Char(',') = lex.peek(1)?.1 {
-        return err!(Syntax, "operator ',' cannot be chained; for 2d array use: &ptr.[m], n");
-    }
+    let root = parse_expression(&mut lex, &mut expr, Precedence::Weakest)?;
     expr.root = root;
 
     let (r, t) = lex.peek(1)?;
@@ -78,17 +60,6 @@ pub fn adjust_expression_for_appending_child_path(expr_str: &str) -> Result<Stri
             }
             true
         }
-        // For slicify with comma, we transform it into conventional slicify.
-        // Simply truncating the slicify would work the same way (as currently, slicify cannot cut
-        // out from the start), but this retains information the user had written out and, if/when
-        // that is added, will support it
-        AST::BinaryOperator(BinaryOperator::SlicifyComma) => {
-            let what_to_slice = &expr.ast[expr.ast[expr.root.0].children[0].0];
-            let lhs = &expr_str[what_to_slice.range.clone()];
-            let slice_amount = &expr.ast[expr.ast[expr.root.0].children[1].0];
-            let rhs = &expr_str[slice_amount.range.clone()];
-            return Ok(format!("({}).[{}]", lhs, rhs));
-        },
 
         _ if node.flags.contains(ASTNodeFlags::HAS_PARENS) => false,
         // These don't need parentheses.
@@ -98,7 +69,7 @@ pub fn adjust_expression_for_appending_child_path(expr_str: &str) -> Result<Stri
         AST::Type {..} | AST::PointerType | AST::ArrayType(_) | AST::Continue | AST::Break | AST::Return => false,
 
         // These need parentheses.
-        AST::UnaryOperator(_) | AST::BinaryOperator(_) | AST::TypeCast | AST::While | AST::For(_) | AST::If | AST::Let {..} | AST::FunctionDefinition {..} | AST::StructDefinition {..} => true,
+        AST::UnaryOperator(_) | AST::BinaryOperator(_) | AST::TypeCast | AST::While | AST::For(_) | AST::If | AST::Let {..} | AST::FunctionDefinition {..} | AST::StructDefinition {..} | AST::BinaryOperator(BinaryOperator::Comma) => true,
     };
     if parentheses {
         Ok(format!("({})", expr_str))
@@ -506,7 +477,7 @@ fn eval_expression(expr: &Expression, node_idx: ASTIdx, state: &mut EvalState, c
             }
             let mut rhs = eval_expression(expr, node.children[1], state, context, false)?;
             follow_references_and_prettify(&mut rhs, None, false, state, context)?;
-            if op == BinaryOperator::Index || op == BinaryOperator::Slicify || op == BinaryOperator::SlicifyComma {
+            if op == BinaryOperator::Index || op == BinaryOperator::Slicify || op == BinaryOperator::Comma {
                 let b = to_basic(&rhs, &mut context.memory, "index with")?;
                 if b.is_f64() { return err!(TypeMismatch, "can't index with float"); }
                 let idx = b.cast_to_usize();
@@ -1055,7 +1026,7 @@ enum BinaryOperator {
 
     Index, // [n]
     Slicify, // .[n]
-    SlicifyComma, // , n - at end of watch expression
+    Comma, // ,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
@@ -1200,7 +1171,8 @@ impl<'a> Lexer<'a> {
                 '=' => Token::BinaryOperator(if self.input.eat_if_eq('=') { BinaryOperator::Eq } else { BinaryOperator::Assign }),
                 '.' => if self.input.eat_if_eq('.') { Token::BinaryOperator(BinaryOperator::Range) } else { self.previous_dot = true; Token::Char('.') },
                 '!' => if self.input.eat_if_eq('=') { Token::BinaryOperator(BinaryOperator::Ne) } else { Token::UnaryOperator(UnaryOperator::Not) },
-                ',' | '(' | ')' | '[' | ']' | '{' | '}' | ';' | '@' => Token::Char(c),
+                ',' => Token::BinaryOperator(BinaryOperator::Comma),
+                '(' | ')' | '[' | ']' | '{' | '}' | ';' | '@' => Token::Char(c),
                 ':' if self.input.peek() != Some(':') => Token::Char(':'),
                 '"' => {
                     let mut s = String::new();
@@ -1790,6 +1762,7 @@ enum Precedence {
     Weakest,
 
     Return, // return
+    Comma, // ,
     Assign, // = += -= *= /= %= &= |= ^= <<= >>=
     Range, // .. ..=
     LazyOr, // ||
@@ -1825,7 +1798,7 @@ fn binary_operator_precedence(op: BinaryOperator) -> Precedence {
         BinaryOperator::Range => Precedence::Range,
         BinaryOperator::Index => Precedence::CallOrIndex,
         BinaryOperator::Slicify => Precedence::Field,
-        BinaryOperator::SlicifyComma => Precedence::Weakest,
+        BinaryOperator::Comma => Precedence::Comma,
     }
 }
 
