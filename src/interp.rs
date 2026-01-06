@@ -19,8 +19,8 @@ pub fn parse_watch_expression(s: &str) -> Result<Expression> {
     let mut lex = Lexer {input: InputStream {input: s, pos: 0}, next_tokens: Vec::new(), previous_token_end: 0, previous_dot: false};
     let mut expr = Expression {ast: Vec::new(), root: ASTIdx(0)};
     let root = parse_expression(&mut lex, &mut expr, Precedence::Weakest)?;
+    // TODO: Allow format specifiers at the end of expression, e.g. ", x", ", rx" - more conveinent than .#x because no need for parens. Syntax seems unambiguous even in full Rust?
     expr.root = root;
-
     let (r, t) = lex.peek(1)?;
     if !t.is_eof() {
         return err!(Syntax, "unexpected {:?} after expression at {}", t, r.start);
