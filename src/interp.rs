@@ -69,7 +69,7 @@ pub fn adjust_expression_for_appending_child_path(expr_str: &str) -> Result<Stri
         AST::Type {..} | AST::PointerType | AST::ArrayType(_) | AST::Continue | AST::Break | AST::Return => false,
 
         // These need parentheses.
-        AST::UnaryOperator(_) | AST::BinaryOperator(_) | AST::TypeCast | AST::While | AST::For(_) | AST::If | AST::Let {..} | AST::FunctionDefinition {..} | AST::StructDefinition {..} | AST::BinaryOperator(BinaryOperator::Comma) => true,
+        AST::UnaryOperator(_) | AST::BinaryOperator(_) | AST::TypeCast | AST::While | AST::For(_) | AST::If | AST::Let {..} | AST::FunctionDefinition {..} | AST::StructDefinition {..} => true,
     };
     if parentheses {
         Ok(format!("({})", expr_str))
