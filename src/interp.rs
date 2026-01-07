@@ -1473,7 +1473,7 @@ fn parse_expression(lex: &mut Lexer, expr: &mut Expression, outer_precedence: Pr
                                     field_names.push(name);
                                     node.children.push(ex);
 
-                                    if lex.eat_if(|t| t.is_char(','))?.is_none() {
+                                    if lex.eat_if(|t| t.is_binary_operator(BinaryOperator::Comma))?.is_none() {
                                         lex.peek_expect("'}'", |t| t.is_char('}'))?;
                                     }
                                 }
@@ -1493,7 +1493,7 @@ fn parse_expression(lex: &mut Lexer, expr: &mut Expression, outer_precedence: Pr
                                     lex.expect("':'", |t| t.is_char(':'))?;
                                     node.children.push(parse_type(lex, expr)?);
 
-                                    if lex.eat_if(|t| t.is_char(','))?.is_none() {
+                                    if lex.eat_if(|t| t.is_binary_operator(BinaryOperator::Comma))?.is_none() {
                                         lex.peek_expect("'}'", |t| t.is_char('}'))?;
                                     }
                                 }
@@ -1506,7 +1506,7 @@ fn parse_expression(lex: &mut Lexer, expr: &mut Expression, outer_precedence: Pr
                     "break" => ast = AST::Break,
                     "return" => {
                         match lex.peek(1)?.1 {
-                            Token::Eof | Token::Char(';') | Token::Char(',') | Token::Char('}') | Token::Char(')') => (),
+                            Token::Eof | Token::Char(';') | Token::BinaryOperator(BinaryOperator::Comma) | Token::Char('}') | Token::Char(')') => (),
                             _ => node.children.push(parse_expression(lex, expr, Precedence::Return)?),
                         }
                         ast = AST::Return;
@@ -1631,7 +1631,7 @@ fn parse_expression(lex: &mut Lexer, expr: &mut Expression, outer_precedence: Pr
         Token::Char('[') => {
             while lex.eat_if(|t| t.is_char(']'))?.is_none() {
                 node.children.push(parse_expression(lex, expr, Precedence::Weakest)?);
-                if lex.eat_if(|t| t.is_char(','))?.is_none() {
+                if lex.eat_if(|t| t.is_binary_operator(BinaryOperator::Comma))?.is_none() {
                     lex.peek_expect("']'", |t| t.is_char(']'))?;
                 }
             }
@@ -1677,7 +1677,7 @@ fn parse_expression(lex: &mut Lexer, expr: &mut Expression, outer_precedence: Pr
                             while !lex.peek(1)?.1.is_char(')') {
                                 let ex = parse_expression(lex, expr, Precedence::Weakest)?;
                                 expr.ast[node_idx.0].children.push(ex);
-                                if lex.eat_if(|t| t.is_char(','))?.is_none() {
+                                if lex.eat_if(|t| t.is_binary_operator(BinaryOperator::Comma))?.is_none() {
                                     lex.peek_expect("')'", |t| t.is_char(')'))?;
                                 }
                             }
