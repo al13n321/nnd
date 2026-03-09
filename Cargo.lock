@@ -204,7 +204,7 @@ dependencies = [
 
 [[package]]
 name = "nnd"
-version = "0.70.0"
+version = "0.71.0"
 dependencies = [
  "bitflags",
  "cpp_demangle",

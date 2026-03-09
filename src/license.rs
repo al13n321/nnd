@@ -231,7 +231,7 @@ Used by:
 ======================== Apache License 2.0 ========================
 
 Used by:
- * nnd 0.70.0
+ * nnd 0.71.0
    https://github.com/al13n321/nnd
  * ureq 3.0.6
    https://github.com/algesten/ureq

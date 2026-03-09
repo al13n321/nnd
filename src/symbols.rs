@@ -1616,13 +1616,9 @@ impl SymbolsLoader {
     }
 
     fn parse_misc_sections(&self, shard_idx: usize, shard: &mut SymbolsLoaderShard) {
-        // Sections that contain executable code but are not usually covered by debug symbols. We pretend that each of them is a function, to make them show up in disassembly window at all.
-        let mut sections_to_add_as_functions = vec![".init", ".fini", ".plt", ".plt.got", ".plt.sec"];
-
-        // If we don't have any information about function address ranges, treat the whole .text section as a function.
-        if !self.sym.elves.iter().any(|elf| elf.section_by_name.get(".debug_info").is_some() || elf.section_by_name.get(".symtab").is_some()) {
-            sections_to_add_as_functions.push(".text");
-        }
+        // Sections like .plt contain executable code but are not usually covered by debug symbols. We pretend that each of them is a function, to make them show up in disassembly window at all.
+        // We also add a "function" covering the whole .text; it'll be overridden (through sort+dedup) by functions from .debug_info or .symtab, if they cover the first byte of .text.
+        let sections_to_add_as_functions = vec![".init", ".fini", ".plt", ".plt.got", ".plt.sec", ".text"];
 
         for name in sections_to_add_as_functions {
             if let Some(&idx) = self.sym.elves[0].section_by_name.get(name) {

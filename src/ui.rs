@@ -5171,6 +5171,8 @@ impl WindowContent for TerminalWindow {
             let l = if count == 0 {
                 // (Even in this case the program is in principle able to access the tty through /dev/tty)
                 ui_writeln!(ui, default_dim, "stdin, stdout, stderr are redirected to files")
+            } else if count == 1 {
+                ui_writeln!(ui, default_dim, " goes here")
             } else {
                 ui_writeln!(ui, default_dim, " go here")
             };
