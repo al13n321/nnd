@@ -335,7 +335,7 @@ static mut CACHED_XSAVE_OPMASK_OFFSET: usize = 0;
 static mut CACHED_XSAVE_ZMM_HI256_OFFSET: usize = 0;
 static mut CACHED_XSAVE_HI16_ZMM_OFFSET: usize = 0;
 fn precalc_xsave_component_offset(component: u32, expected_size: usize) -> usize {
-    let res = unsafe {core::arch::x86_64::__cpuid_count(0xd, component)};
+    let res = core::arch::x86_64::__cpuid_count(0xd, component);
     let (offset, actual_size) = (res.ebx as usize, res.eax as usize);
     if actual_size == 0 || offset == 0 {
         // The CPU doesn't support this instruction set.
