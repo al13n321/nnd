@@ -1,5 +1,5 @@
 use crate::{*, common_ui::*, terminal::*, settings::*, util::*, log::*, pool::*, term_emu::*};
-use std::{mem, ops::Range, collections::HashMap, time::{Instant, Duration}, hash::Hash};
+use std::{mem, ops::Range, collections::HashMap, time::{Instant, Duration}, hash::Hash, io, io::Write};
 use bitflags::*;
 
 // Immediate-mode UI library, inspired by https://www.rfleury.com/p/ui-series-table-of-contents
@@ -416,6 +416,13 @@ pub struct UI {
     pub clipboard: String,
 }
 impl UI {
+    pub fn sync_clipboard_to_os(&self) {
+        if self.clipboard.is_empty() { return; }
+        let b64 = base64_encode(self.clipboard.as_bytes());
+        let _ = write!(io::stdout(), "\x1b]52;c;{}\x07", b64);
+        let _ = io::stdout().flush();
+    }
+
     // Returns true if any of the input was significant enough that we should redraw.
     pub fn buffer_input(&mut self, events: &[EventInfo]) -> bool {
         let mut any_significant = false;

@@ -1454,6 +1454,7 @@ impl WindowContent for WatchesWindow {
                             s.push_str(self.tree.text.get_line_str(i));
                         }
                         ui.clipboard = s;
+                        ui.sync_clipboard_to_os();
                     }
                 }
                 // We allow expanding even nodes without children, to enable line wrapping. Currently we have no indication of that, would be nice to check whether the text fits and allow expanding only if it doesn't.

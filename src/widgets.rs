@@ -1152,6 +1152,7 @@ impl TextInput {
                     let r = self.selection();
                     if !r.is_empty() {
                         ui.clipboard = self.text[r].to_string();
+                        ui.sync_clipboard_to_os();
                     }
                     moved = false;
                 }
@@ -1311,6 +1312,7 @@ impl TextInput {
             // Append or prepend to the clipboard.
             let pos = if self.cursor > self.mark {ui.clipboard.len()} else {0};
             ui.clipboard.insert_str(pos, &self.text[r.clone()]);
+            ui.sync_clipboard_to_os();
         }
         self.text.replace_range(r.clone(), "");
         self.cursor = r.start;
