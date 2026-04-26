@@ -3,8 +3,9 @@ set -e
 
 # Prerequisites:
 #  * `rustup target add x86_64-unknown-linux-musl`
-#  * github CLI (`gh`)
-#  * `cargo install cargo-about`
+#  * install github CLI (`gh`)
+#  * `gh auth login`
+#  * `cargo install cargo-about --features=cli`
 #  * `cd` to the directory with Cargo.toml etc
 
 COMMIT_MESSAGE=''
@@ -58,6 +59,11 @@ then
     TAG_NUM=$(($TAG_NUM + 1))
     TAG="v0.$TAG_NUM"
     NEW_GH_TAG=1
+fi
+
+if [ "$COMMIT_MESSAGE" == "" ]
+then
+    COMMIT_MESSAGE="$TAG"
 fi
 
 # Write version number to Cargo.toml
