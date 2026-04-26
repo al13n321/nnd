@@ -291,7 +291,8 @@ impl DebuggerUI {
         self.ui.end_build(&mut buffer);
         let build_tsc = timer.restart(&debugger.prof.bucket).saturating_sub(self.ui.prof_render_tsc);
 
-        let commands = self.terminal.prepare_command_buffer(&buffer, self.ui.should_show_cursor.clone());
+        let clipboard_to_sync = mem::take(&mut self.ui.should_set_os_clipboard).then_some(self.ui.clipboard.as_str());
+        let commands = self.terminal.prepare_command_buffer(&buffer, self.ui.should_show_cursor.clone(), clipboard_to_sync);
         debugger.prof.bucket.ui_output_bytes += commands.len();
         self.terminal.present(buffer, commands, &mut debugger.prof.bucket)?;
         let fill_tsc = fill_tsc + timer.finish(&debugger.prof.bucket);
@@ -1673,7 +1674,7 @@ impl WindowContent for WatchesWindow {
                         s.push_str(self.tree.text.get_line_str(i));
                     }
                     ui.clipboard = s;
-                    ui.sync_clipboard_to_os();
+                    ui.should_set_os_clipboard = true;
                 }
             }
         }

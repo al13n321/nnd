@@ -241,7 +241,7 @@ impl Terminal {
         Ok(())
     }
 
-    pub fn prepare_command_buffer(&self, buffer: &ScreenBuffer, show_cursor: Option<[isize; 2]>) -> Vec<u8> {
+    pub fn prepare_command_buffer(&self, buffer: &ScreenBuffer, show_cursor: Option<[isize; 2]>, set_os_clipboard: Option<&str>) -> Vec<u8> {
         let mut commands: Vec<u8> = Vec::new();
         let (mut cur_x, mut cur_y, mut cur_style) = (usize::MAX, usize::MAX, Style::default());
         write!(commands, "{}{}", CURSOR_HIDE, STYLE_RESET_TO_BLACK).unwrap();
@@ -312,6 +312,13 @@ impl Terminal {
         if let Some([x, y]) = show_cursor {
             if x >= 0 && y >= 0 && x <= buffer.width as isize && y <= buffer.height as isize {
                 write!(commands, "\x1B[{};{}H{}", y + 1, x + 1, CURSOR_SHOW).unwrap();
+            }
+        }
+
+        if let Some(clipboard) = set_os_clipboard {
+            if !clipboard.is_empty() {
+                let b64 = base64_encode(clipboard.as_bytes());
+                write!(commands, "\x1b]52;c;{}\x07", b64).unwrap();
             }
         }
 
