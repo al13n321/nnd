@@ -6,7 +6,7 @@ documentation = "https://github.com/al13n321/nnd"
 repository = "https://github.com/al13n321/nnd"
 keywords = ["debugger", "tui"]
 categories = ["development-tools::debugging"]
-version = "0.71.0" # [[this version number is written by release.sh]]
+version = "0.72.0" # [[this version number is written by release.sh]]
 edition = "2021" # I tried updating to 2024, but it just makes build 10% slower without making the resulting executable any faster
 rust-version = "1.89" # build often breaks when updating the compiler because of newly added warnings
 
@@ -44,7 +44,7 @@ unicode-width = "^0.1"
 rustc-demangle = "^0.1"
 # HTTP+TLS client for downloading from debuginfod. This accounts for more than half of the dependency tree (see `cargo tree`)
 # and adds the only non-cargo dependency: musl-tools (use e.g. `apt install musl-tools`). But I couldn't find anything smaller :(
-ureq = "^3.0"
+ureq = "^3.3"
 voracious_radix_sort = "^1.2"
 vt100 = "^0.16" # terminal emulator for the console window
 
