@@ -1159,6 +1159,7 @@ impl TextInput {
                 Some(KeyAction::Cut) => {
                     if !self.selection().is_empty() {
                         self.delete_selection(true, false, ui);
+                        ui.sync_clipboard_to_os();
                         edited = true;
                     }
                 }
@@ -1312,7 +1313,6 @@ impl TextInput {
             // Append or prepend to the clipboard.
             let pos = if self.cursor > self.mark {ui.clipboard.len()} else {0};
             ui.clipboard.insert_str(pos, &self.text[r.clone()]);
-            ui.sync_clipboard_to_os();
         }
         self.text.replace_range(r.clone(), "");
         self.cursor = r.start;
