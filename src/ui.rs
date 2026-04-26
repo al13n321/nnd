@@ -832,12 +832,12 @@ impl WatchesWindow {
         }
     }
 
-    // If !node.expanded: populates formatted_value[0], has_children.
-    // If  node.expanded: populates formatted_value[1], has_children, children.
+    // If !expanded: populates formatted_value[0], has_children.
+    // If  expanded: populates formatted_value[1], has_children, children.
     // If already populated, does nothing.
-    fn ensure_node_info(&mut self, node_idx: ValueTreeNodeIdx, context: &mut EvalContext, suspended: bool, palette: &Palette) {
+    fn ensure_node_info(&mut self, node_idx: ValueTreeNodeIdx, context: &mut EvalContext, suspended: bool, expanded: bool, palette: &Palette) {
         let node = &mut self.tree.nodes[node_idx.0];
-        let i = node.expanded as usize;
+        let i = expanded as usize;
         if node.formatted_value[i].is_some() {
             return;
         }
@@ -893,7 +893,7 @@ impl WatchesWindow {
                 node.formatted_value[1] = Some(l..l+1);
             }
             (&None, Ok(value)) => {
-                let (has_children, children, click_action) = format_value(value, node.expanded, &mut self.eval_state, context, &mut self.tree.temp_text, &mut self.tree.text, palette);
+                let (has_children, children, click_action) = format_value(value, expanded, &mut self.eval_state, context, &mut self.tree.temp_text, &mut self.tree.text, palette);
                 let l = self.tree.temp_text.close_line();
                 let l = self.tree.text.import_lines(&self.tree.temp_text, l..l+1);
                 node.formatted_value[i] = Some(l);
@@ -954,7 +954,7 @@ impl WatchesWindow {
                     height.set_max(node.line_wrapped_name.clone().unwrap().len());
                 }
 
-                self.ensure_node_info(node_idx, context, suspended, palette);
+                self.ensure_node_info(node_idx, context, suspended, true, palette);
                 let node = &mut self.tree.nodes[node_idx.0];
 
                 if node.formatted_value[2].is_none() && node.formatted_value[1].is_some() {
@@ -1013,7 +1013,7 @@ impl WatchesWindow {
             let lines = if node.expanded {
                 node.formatted_value[2].clone().unwrap()
             } else {
-                self.ensure_node_info(node_idx, context, suspended, &ui.palette);
+                self.ensure_node_info(node_idx, context, suspended, false, &ui.palette);
                 self.tree.nodes[node_idx.0].formatted_value[0].clone().unwrap()
             };
             let node = &self.tree.nodes[node_idx.0];
@@ -1664,10 +1664,7 @@ impl WindowContent for WatchesWindow {
 
         if ui.check_key(KeyAction::CopyValue) {
             if let Some(&node_idx) = self.tree.rows.get(self.cursor_idx) {
-                let old_expanded = self.tree.nodes[node_idx.0].expanded;
-                self.tree.nodes[node_idx.0].expanded = false;
-                self.ensure_node_info(node_idx, &mut eval_context, suspended, &ui.palette);
-                self.tree.nodes[node_idx.0].expanded = old_expanded;
+                self.ensure_node_info(node_idx, &mut eval_context, suspended, false, &ui.palette);
 
                 if let Some(range) = self.tree.nodes[node_idx.0].formatted_value[0].clone() {
                     let mut s = String::new();
