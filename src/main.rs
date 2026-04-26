@@ -454,7 +454,7 @@ fn run(settings: Settings, attach_pid: Option<pid_t>, core_dump_path: Option<Str
             // Set signal handler.
             let mut action: libc::sigaction = mem::zeroed();
             action.sa_flags = libc::SA_SIGINFO;
-            action.sa_sigaction = signal_handler as libc::sighandler_t;
+            action.sa_sigaction = signal_handler as *const () as libc::sighandler_t;
             let mut mask: libc::sigset_t = mem::zeroed();
             libc::sigemptyset(&mut mask);
             action.sa_mask = mask;

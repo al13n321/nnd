@@ -725,3 +725,29 @@ macro_rules! radix_sort_key {
         impl core::cmp::Eq for $name {}
     };
 }
+
+pub fn base64_encode(data: &[u8]) -> String {
+    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut result = String::with_capacity((data.len() + 2) / 3 * 4);
+    for chunk in data.chunks(3) {
+        let b = match chunk.len() {
+            3 => (chunk[0] as u32) << 16 | (chunk[1] as u32) << 8 | (chunk[2] as u32),
+            2 => (chunk[0] as u32) << 16 | (chunk[1] as u32) << 8,
+            1 => (chunk[0] as u32) << 16,
+            _ => unreachable!(),
+        };
+        result.push(ALPHABET[((b >> 18) & 0x3f) as usize] as char);
+        result.push(ALPHABET[((b >> 12) & 0x3f) as usize] as char);
+        if chunk.len() > 1 {
+            result.push(ALPHABET[((b >> 6) & 0x3f) as usize] as char);
+        } else {
+            result.push('=');
+        }
+        if chunk.len() > 2 {
+            result.push(ALPHABET[(b & 0x3f) as usize] as char);
+        } else {
+            result.push('=');
+        }
+    }
+    result
+}

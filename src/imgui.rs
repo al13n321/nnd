@@ -1,5 +1,5 @@
 use crate::{*, common_ui::*, terminal::*, settings::*, util::*, log::*, pool::*, term_emu::*};
-use std::{mem, ops::Range, collections::HashMap, time::{Instant, Duration}, hash::Hash};
+use std::{mem, ops::Range, collections::HashMap, time::{Instant, Duration}, hash::Hash, io, io::Write};
 use bitflags::*;
 
 // Immediate-mode UI library, inspired by https://www.rfleury.com/p/ui-series-table-of-contents
@@ -360,6 +360,7 @@ pub struct UI {
     //  disassembly window to scroll (to the corresponding line), and vice versa.)
     pub should_redraw: bool,
     pub should_show_cursor: Option<[isize; 2]>,
+    pub should_set_os_clipboard: bool,
     pub prof_render_tsc: u64, // how long render() took during the latest end_build() call
     // TODO: Animation system.
 

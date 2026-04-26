@@ -1152,12 +1152,14 @@ impl TextInput {
                     let r = self.selection();
                     if !r.is_empty() {
                         ui.clipboard = self.text[r].to_string();
+                        ui.should_set_os_clipboard = true;
                     }
                     moved = false;
                 }
                 Some(KeyAction::Cut) => {
                     if !self.selection().is_empty() {
                         self.delete_selection(true, false, ui);
+                        ui.should_set_os_clipboard = true;
                         edited = true;
                     }
                 }
