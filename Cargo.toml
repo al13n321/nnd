@@ -43,7 +43,7 @@ unicode-segmentation = "^1.10"
 unicode-width = "^0.1"
 rustc-demangle = "^0.1"
 # HTTP+TLS client for downloading from debuginfod. This accounts for more than half of the dependency tree (see `cargo tree`)
-# and adds the only non-cargo dependency: musl-tools (use e.g. `apt install musl-tools`). But I couldn't find anything smaller :(
+# and adds the only non-cargo dependency: musl-tools (use e.g. `apt install musl-tools` or `dnf install musl-gcc`). But I couldn't find anything smaller :(
 ureq = "^3.3"
 voracious_radix_sort = "^1.2"
 vt100 = "^0.16" # terminal emulator for the console window
