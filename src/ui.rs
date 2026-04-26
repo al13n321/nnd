@@ -1416,7 +1416,7 @@ impl WindowContent for WatchesWindow {
         // Keyboard input.
         let mut refresh_data = self.tree.roots.is_empty();
         let (mut open_variable_search, mut open_type_search) = (false, false);
-        for action in ui.check_keys(&[KeyAction::Cancel, KeyAction::CursorRight, KeyAction::CursorLeft, KeyAction::Enter, KeyAction::DeleteRow, KeyAction::DuplicateRow, KeyAction::AddValueRefWatch, KeyAction::ReorderRowUp, KeyAction::ReorderRowDown, KeyAction::Open, KeyAction::FindType, KeyAction::DataWriteBreakpoint, KeyAction::DataReadWriteBreakpoint, KeyAction::ConditionalDataWriteBreakpoint, KeyAction::ConditionalDataReadWriteBreakpoint, KeyAction::CopyValue]) {
+        for action in ui.check_keys(&[KeyAction::Cancel, KeyAction::CursorRight, KeyAction::CursorLeft, KeyAction::Enter, KeyAction::DeleteRow, KeyAction::DuplicateRow, KeyAction::AddValueRefWatch, KeyAction::ReorderRowUp, KeyAction::ReorderRowDown, KeyAction::Open, KeyAction::FindType, KeyAction::DataWriteBreakpoint, KeyAction::DataReadWriteBreakpoint, KeyAction::ConditionalDataWriteBreakpoint, KeyAction::ConditionalDataReadWriteBreakpoint]) {
             self.scroll_to_cursor = true;
 
             if action == KeyAction::Cancel {
@@ -1434,29 +1434,6 @@ impl WindowContent for WatchesWindow {
                 None
             };
             match action {
-                KeyAction::CopyValue => {
-                    let old_expanded = self.tree.nodes[node_idx.0].expanded;
-                    self.tree.nodes[node_idx.0].expanded = false;
-                    let mut eval_context = debugger.make_eval_context(&state.stack, state.selected_subframe, state.selected_thread);
-                    let mut suspended = false;
-                    if let Some(thread) = debugger.threads.get(&state.selected_thread) {
-                        if thread.state == ThreadState::Suspended && !state.stack.frames.is_empty() {
-                            suspended = true;
-                        }
-                    }
-                    self.ensure_node_info(node_idx, &mut eval_context, suspended, &ui.palette);
-                    self.tree.nodes[node_idx.0].expanded = old_expanded;
-
-                    if let Some(range) = self.tree.nodes[node_idx.0].formatted_value[0].clone() {
-                        let mut s = String::new();
-                        for i in range {
-                            if !s.is_empty() { s.push('\n'); }
-                            s.push_str(self.tree.text.get_line_str(i));
-                        }
-                        ui.clipboard = s;
-                        ui.sync_clipboard_to_os();
-                    }
-                }
                 // We allow expanding even nodes without children, to enable line wrapping. Currently we have no indication of that, would be nice to check whether the text fits and allow expanding only if it doesn't.
                 KeyAction::CursorRight if &node.special != &Some(SpecialWatch::AddWatch) => {self.expanded_nodes.insert(node.identity);}
                 KeyAction::CursorLeft => {
@@ -1684,6 +1661,25 @@ impl WindowContent for WatchesWindow {
         with_parent!(ui, content_widget, {
             self.build_widgets(visible_y, &mut eval_context, suspended, state, ui);
         });
+
+        if ui.check_key(KeyAction::CopyValue) {
+            if let Some(&node_idx) = self.tree.rows.get(self.cursor_idx) {
+                let old_expanded = self.tree.nodes[node_idx.0].expanded;
+                self.tree.nodes[node_idx.0].expanded = false;
+                self.ensure_node_info(node_idx, &mut eval_context, suspended, &ui.palette);
+                self.tree.nodes[node_idx.0].expanded = old_expanded;
+
+                if let Some(range) = self.tree.nodes[node_idx.0].formatted_value[0].clone() {
+                    let mut s = String::new();
+                    for i in range {
+                        if !s.is_empty() { s.push('\n'); }
+                        s.push_str(self.tree.text.get_line_str(i));
+                    }
+                    ui.clipboard = s;
+                    ui.sync_clipboard_to_os();
+                }
+            }
+        }
 
         if let &Some((identity, _, _)) = &self.text_input {
             // (The second condition is not required because the text input will lose focus on next frame if cursor_path moved away from it. But it saves one frame of latency + one unnecessary redraw.)
