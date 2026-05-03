@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 #![allow(unused_imports)]
+#![allow(unused_unsafe)]
 // This is only needed on the 'use gimli::*' statements (for constants like DW_AT_name), but it doesn't work there.
 #![allow(non_upper_case_globals)]
 // Allow unsafe {(*p).x.y} instead of unsafe {(&(*p).x).y}
