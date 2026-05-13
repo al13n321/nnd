@@ -1139,7 +1139,7 @@ fn recognize_cpp_list(substruct: &mut Substruct, val: &mut Cow<Value>, state: &m
         allow_extra_fields = true;
         first_node_field = find_pointer_field(&["nxt"], &mut before_begin, &mut node_type)?;
         before_begin.check_all_fields_used()?;
-    } else if let Some(p) = optional_field(find_pointer_field(&["p1"], substruct, &mut node_type))? {
+    } else if let Some(p) = optional_field(find_pointer_field(&["p1", "first_node"], substruct, &mut node_type))? {
         // libc++ unordered_map
         first_node_field = p;
         allow_extra_fields = true;
