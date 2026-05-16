@@ -1,3 +1,4 @@
+// This file was vibecoded mostly by Claude 4.7.
 use crate::{common_ui::*, settings::*};
 use std::{mem, ops::Range, path::Path, sync::LazyLock};
 use tree_sitter::Language;
@@ -114,10 +115,12 @@ static C_CONFIG: LazyLock<Option<HighlightConfiguration>> = LazyLock::new(|| {
     )
 });
 static CPP_CONFIG: LazyLock<Option<HighlightConfiguration>> = LazyLock::new(|| {
+    // tree-sitter-cpp's highlights query only adds C++-specific captures and assumes the C query is also active (this is what nvim-treesitter wires up via the grammar's `inherits: c` directive). tree-sitter-highlight doesn't honor that on its own, so concatenate them ourselves.
+    let combined = format!("{}\n{}", tree_sitter_c::HIGHLIGHT_QUERY, tree_sitter_cpp::HIGHLIGHT_QUERY);
     make_config(
         tree_sitter_cpp::LANGUAGE.into(),
         "cpp",
-        tree_sitter_cpp::HIGHLIGHT_QUERY,
+        &combined,
         "",
     )
 });
