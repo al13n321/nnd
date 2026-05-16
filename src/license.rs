@@ -7,11 +7,12 @@ Source code is available at https://github.com/al13n321/nnd
 It uses open source libraries under various licenses.
 
 Overview:
- * Apache License 2.0 (40)
- * MIT License (6)
+ * Apache License 2.0 (50)
+ * MIT License (14)
  * ISC License (3)
  * BSD 3-Clause "New" or "Revised" License (1)
  * Community Data License Agreement Permissive 2.0 (1)
+ * Unicode License v3 (1)
 
 License texts:
 
@@ -443,7 +444,7 @@ Used by:
 ======================== Apache License 2.0 ========================
 
 Used by:
- * nnd 0.74.0
+ * nnd 0.75.0
    https://github.com/al13n321/nnd
  * ureq 3.3.0
    https://github.com/algesten/ureq
@@ -658,6 +659,8 @@ Used by:
 Used by:
  * crc32fast 1.5.0
    https://github.com/srijs/rust-crc32fast
+ * streaming-iterator 0.1.9
+   https://github.com/sfackler/streaming-iterator
 
 
                                  Apache License
@@ -1525,6 +1528,12 @@ Used by:
    https://github.com/matklad/once_cell
  * percent-encoding 2.3.2
    https://github.com/servo/rust-url/
+ * regex-automata 0.4.14
+   https://github.com/rust-lang/regex
+ * regex-syntax 0.8.10
+   https://github.com/rust-lang/regex
+ * regex 1.12.3
+   https://github.com/rust-lang/regex
  * ring 0.17.14
    https://github.com/briansmith/ring
  * rustc-demangle 0.1.27
@@ -2379,8 +2388,20 @@ Used by:
    https://github.com/stainless-steel/md5
  * miniz_oxide 0.8.9
    https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide
+ * proc-macro2 1.0.106
+   https://github.com/dtolnay/proc-macro2
+ * quote 1.0.45
+   https://github.com/dtolnay/quote
  * rand 0.8.6
    https://github.com/rust-random/rand
+ * syn 2.0.117
+   https://github.com/dtolnay/syn
+ * thiserror-impl 2.0.18
+   https://github.com/dtolnay/thiserror
+ * thiserror 2.0.18
+   https://github.com/dtolnay/thiserror
+ * unicode-ident 1.0.24
+   https://github.com/dtolnay/unicode-ident
  * ureq-proto 0.6.0
    https://github.com/algesten/ureq-proto
  * utf8-zero 0.8.1
@@ -2721,6 +2742,10 @@ SOFTWARE.
 Used by:
  * iced-x86 1.21.0
    https://github.com/icedland/iced
+ * tree-sitter-cpp 0.23.4
+   https://github.com/tree-sitter/tree-sitter-cpp
+ * tree-sitter-zig 1.1.2
+   https://github.com/tree-sitter-grammars/tree-sitter-zig
 
 
 MIT License
@@ -2778,6 +2803,39 @@ SOFTWARE.
 ======================== MIT License ========================
 
 Used by:
+ * tree-sitter-c 0.24.2
+   https://github.com/tree-sitter/tree-sitter-c
+
+
+The MIT License (MIT)
+
+Copyright (c) 2014 Max Brunsfeld
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+
+======================== MIT License ========================
+
+Used by:
+ * aho-corasick 1.1.4
+   https://github.com/BurntSushi/aho-corasick
  * memchr 2.8.0
    https://github.com/BurntSushi/memchr
 
@@ -2834,5 +2892,120 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+
+
+======================== MIT License ========================
+
+Used by:
+ * tree-sitter-rust 0.24.2
+   https://github.com/tree-sitter/tree-sitter-rust
+
+
+The MIT License (MIT)
+
+Copyright (c) 2017 Maxim Sokolov
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+
+======================== MIT License ========================
+
+Used by:
+ * tree-sitter-highlight 0.26.8
+   https://github.com/tree-sitter/tree-sitter
+ * tree-sitter-language 0.1.7
+   https://github.com/tree-sitter/tree-sitter
+ * tree-sitter 0.26.8
+   https://github.com/tree-sitter/tree-sitter
+
+
+The MIT License (MIT)
+
+Copyright (c) 2018 Max Brunsfeld
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+
+======================== Unicode License v3 ========================
+
+Used by:
+ * unicode-ident 1.0.24
+   https://github.com/dtolnay/unicode-ident
+
+
+UNICODE LICENSE V3
+
+COPYRIGHT AND PERMISSION NOTICE
+
+Copyright © 1991-2023 Unicode, Inc.
+
+NOTICE TO USER: Carefully read the following legal agreement. BY
+DOWNLOADING, INSTALLING, COPYING OR OTHERWISE USING DATA FILES, AND/OR
+SOFTWARE, YOU UNEQUIVOCALLY ACCEPT, AND AGREE TO BE BOUND BY, ALL OF THE
+TERMS AND CONDITIONS OF THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT
+DOWNLOAD, INSTALL, COPY, DISTRIBUTE OR USE THE DATA FILES OR SOFTWARE.
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of data files and any associated documentation (the "Data Files") or
+software and any associated documentation (the "Software") to deal in the
+Data Files or Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, and/or sell
+copies of the Data Files or Software, and to permit persons to whom the
+Data Files or Software are furnished to do so, provided that either (a)
+this copyright and permission notice appear with all copies of the Data
+Files or Software, or (b) this copyright and permission notice appear in
+associated Documentation.
+
+THE DATA FILES AND SOFTWARE ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF
+THIRD PARTY RIGHTS.
+
+IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN THIS NOTICE
+BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSEQUENTIAL DAMAGES,
+OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THE DATA
+FILES OR SOFTWARE.
+
+Except as contained in this notice, the name of a copyright holder shall
+not be used in advertising or otherwise to promote the sale, use or other
+dealings in these Data Files or Software without prior written
+authorization of the copyright holder.
 
 "###;
