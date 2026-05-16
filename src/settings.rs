@@ -45,6 +45,8 @@ pub struct Settings {
     pub trace_logging: bool, // verbose logging, e.g. log every signal passed-through to the process
 
     pub initial_breakpoints: Vec<LineBreakpoint>,
+
+    pub syntax_highlighting: bool,
 }
 impl Default for Settings {
     fn default() -> Self { Settings {
@@ -78,6 +80,8 @@ impl Default for Settings {
         trace_logging: false,
 
         initial_breakpoints: Vec::new(),
+
+        syntax_highlighting: true,
     } }
 }
 

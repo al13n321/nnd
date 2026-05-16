@@ -4112,7 +4112,9 @@ impl CodeWindow {
             insert_markers_and_close_line(&mut line_idx, &mut res.text, &mut marker_idx);
         }
 
-        crate::syntax_highlight::apply_to_text(&mut res.text, path_in_symbols, palette);
+        if debugger.context.settings.syntax_highlighting {
+            crate::syntax_highlight::apply_to_text(&mut res.text, path_in_symbols, palette);
+        }
         res.widest_line = res.text.widest_line(0..res.text.num_lines());
 
         Ok((buffered.count, buffered.hasher.compute().into()))

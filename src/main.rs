@@ -258,6 +258,8 @@ fn main() {
             let path = parts[1].to_string();
 
             settings.initial_breakpoints.push(LineBreakpoint {path: path.into(), line: line, adjusted_line: None});
+        } else if let Some(_) = parse_arg(&mut args, &mut seen_args, "--no-syntax-highlight", "", true, false) {
+            settings.syntax_highlighting = false;
         } else if let Some(_) = parse_arg(&mut args, &mut seen_args, "--version", "", true, false) {
             let v = const { // str::strip_suffix is not supported at compile time
                 let v = env!("CARGO_PKG_VERSION");

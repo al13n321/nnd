@@ -3,38 +3,99 @@ use std::{mem, ops::Range, path::Path, sync::LazyLock};
 use tree_sitter::Language;
 use tree_sitter_highlight::{Highlight, HighlightConfiguration, HighlightEvent, Highlighter};
 
-const HIGHLIGHT_NAMES: &[&str] = &[
-    "attribute",
-    "boolean",
-    "comment",
-    "comment.documentation",
-    "constant",
-    "constant.builtin",
-    "constructor",
-    "escape",
-    "function",
-    "function.builtin",
-    "keyword",
-    "module",
-    "number",
-    "operator",
-    "property",
-    "property.builtin",
-    "punctuation",
-    "punctuation.bracket",
-    "punctuation.delimiter",
-    "punctuation.special",
-    "string",
-    "string.escape",
-    "string.special",
-    "tag",
-    "type",
-    "type.builtin",
-    "variable",
-    "variable.builtin",
-    "variable.member",
-    "variable.parameter",
-];
+// Capture names recognized by the tree-sitter highlights queries. Order is the contract with tree_sitter_highlight: `HighlightConfiguration::configure` assigns `Highlight(n)` to the n-th name we pass it, so this enum's discriminants and the `HIGHLIGHT_NAMES` array below must stay in lockstep — handled by deriving the array from `HighlightKind::name()`.
+#[repr(usize)]
+#[derive(Copy, Clone)]
+enum HighlightKind {
+    Attribute,
+    Boolean,
+    Comment,
+    CommentDocumentation,
+    Constant,
+    ConstantBuiltin,
+    Constructor,
+    Escape,
+    Function,
+    FunctionBuiltin,
+    Keyword,
+    Module,
+    Number,
+    Operator,
+    Property,
+    PropertyBuiltin,
+    Punctuation,
+    PunctuationBracket,
+    PunctuationDelimiter,
+    PunctuationSpecial,
+    String,
+    StringEscape,
+    StringSpecial,
+    Tag,
+    Type,
+    TypeBuiltin,
+    Variable,
+    VariableBuiltin,
+    VariableMember,
+    VariableParameter,
+    #[doc(hidden)]
+    Count,
+}
+
+impl HighlightKind {
+    const COUNT: usize = Self::Count as usize;
+
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Attribute => "attribute",
+            Self::Boolean => "boolean",
+            Self::Comment => "comment",
+            Self::CommentDocumentation => "comment.documentation",
+            Self::Constant => "constant",
+            Self::ConstantBuiltin => "constant.builtin",
+            Self::Constructor => "constructor",
+            Self::Escape => "escape",
+            Self::Function => "function",
+            Self::FunctionBuiltin => "function.builtin",
+            Self::Keyword => "keyword",
+            Self::Module => "module",
+            Self::Number => "number",
+            Self::Operator => "operator",
+            Self::Property => "property",
+            Self::PropertyBuiltin => "property.builtin",
+            Self::Punctuation => "punctuation",
+            Self::PunctuationBracket => "punctuation.bracket",
+            Self::PunctuationDelimiter => "punctuation.delimiter",
+            Self::PunctuationSpecial => "punctuation.special",
+            Self::String => "string",
+            Self::StringEscape => "string.escape",
+            Self::StringSpecial => "string.special",
+            Self::Tag => "tag",
+            Self::Type => "type",
+            Self::TypeBuiltin => "type.builtin",
+            Self::Variable => "variable",
+            Self::VariableBuiltin => "variable.builtin",
+            Self::VariableMember => "variable.member",
+            Self::VariableParameter => "variable.parameter",
+            Self::Count => unreachable!(),
+        }
+    }
+
+    // Safe because variants of a fieldless `#[repr(usize)]` enum without explicit discriminants are sequential 0..COUNT.
+    const fn from_index(n: usize) -> Self {
+        assert!(n < Self::COUNT);
+        unsafe { mem::transmute(n) }
+    }
+}
+
+const HIGHLIGHT_NAMES: [&str; HighlightKind::COUNT] = {
+    let mut arr = [""; HighlightKind::COUNT];
+    let mut i = 0;
+    while i < HighlightKind::COUNT {
+        arr[i] = HighlightKind::from_index(i).name();
+        i += 1;
+    }
+    arr
+};
 
 static RUST_CONFIG: LazyLock<Option<HighlightConfiguration>> = LazyLock::new(|| {
     make_config(
@@ -77,7 +138,7 @@ fn make_config(
 ) -> Option<HighlightConfiguration> {
     let mut config =
         HighlightConfiguration::new(language, name, highlights_query, injections_query, "").ok()?;
-    config.configure(HIGHLIGHT_NAMES);
+    config.configure(&HIGHLIGHT_NAMES);
     Some(config)
 }
 
@@ -103,31 +164,28 @@ fn config_for_injection(name: &str) -> Option<&'static HighlightConfiguration> {
 }
 
 fn highlight_style(highlight: Highlight, palette: &Palette) -> Style {
-    let Some(name) = HIGHLIGHT_NAMES.get(highlight.0) else {
+    debug_assert!(highlight.0 < HighlightKind::COUNT);
+    if highlight.0 >= HighlightKind::COUNT {
         return palette.default;
-    };
-    match *name {
-        "attribute" => palette.code_attribute,
-        "boolean" => palette.code_constant,
-        "comment" | "comment.documentation" => palette.code_comment,
-        "constant" | "constant.builtin" => palette.code_constant,
-        "constructor" => palette.code_type,
-        "escape" | "string.escape" | "string.special" => palette.code_escape,
-        "function" | "function.builtin" => palette.code_function,
-        "keyword" => palette.code_keyword,
-        "module" => palette.code_module,
-        "number" => palette.code_number,
-        "operator" => palette.code_operator,
-        "property" | "property.builtin" | "variable.member" => palette.code_property,
-        "punctuation" | "punctuation.bracket" | "punctuation.delimiter" | "punctuation.special" => {
-            palette.code_punctuation
-        }
-        "string" => palette.code_string,
-        "tag" => palette.code_type,
-        "type" | "type.builtin" => palette.code_type,
-        "variable" | "variable.builtin" => palette.code_variable,
-        "variable.parameter" => palette.code_parameter,
-        _ => palette.default,
+    }
+    use HighlightKind::*;
+    match HighlightKind::from_index(highlight.0) {
+        Attribute => palette.code_attribute,
+        Boolean | Constant | ConstantBuiltin => palette.code_constant,
+        Comment | CommentDocumentation => palette.code_comment,
+        Constructor | Tag | Type | TypeBuiltin => palette.code_type,
+        Escape | StringEscape | StringSpecial => palette.code_escape,
+        Function | FunctionBuiltin => palette.code_function,
+        Keyword => palette.code_keyword,
+        Module => palette.code_module,
+        Number => palette.code_number,
+        Operator => palette.code_operator,
+        Property | PropertyBuiltin | VariableMember => palette.code_property,
+        Punctuation | PunctuationBracket | PunctuationDelimiter | PunctuationSpecial => palette.code_punctuation,
+        String => palette.code_string,
+        Variable | VariableBuiltin => palette.code_variable,
+        VariableParameter => palette.code_parameter,
+        Count => unreachable!(),
     }
 }
 
@@ -146,14 +204,13 @@ pub fn apply_to_text(text: &mut StyledText, path: &Path, palette: &Palette) {
         return;
     };
 
-    let (source, source_line_starts, source_line_lens, text_line_starts) =
-        make_source_for_parser(text);
-    if source.is_empty() {
+    let (buf, line_breaks) = flatten(text);
+    if buf.chars.is_empty() {
         return;
     }
 
     let mut highlighter = Highlighter::new();
-    let events = match highlighter.highlight(config, source.as_bytes(), None, |name| {
+    let events = match highlighter.highlight(config, buf.chars.as_bytes(), None, |name| {
         config_for_injection(name)
     }) {
         Ok(events) => events,
@@ -161,7 +218,7 @@ pub fn apply_to_text(text: &mut StyledText, path: &Path, palette: &Palette) {
     };
 
     let mut active_highlights: Vec<Highlight> = Vec::new();
-    let mut ranges: Vec<(Range<usize>, Style)> = Vec::new();
+    let mut syntax_ranges: Vec<(Range<usize>, Style)> = Vec::new();
     for event in events {
         match event {
             Ok(HighlightEvent::HighlightStart(highlight)) => active_highlights.push(highlight),
@@ -170,130 +227,96 @@ pub fn apply_to_text(text: &mut StyledText, path: &Path, palette: &Palette) {
             }
             Ok(HighlightEvent::Source { start, end }) => {
                 if let Some(highlight) = active_highlights.last().copied() {
-                    let style = highlight_style(highlight, palette);
-                    push_text_ranges_for_source_range(
-                        start..end,
-                        style,
-                        &source_line_starts,
-                        &source_line_lens,
-                        &text_line_starts,
-                        &mut ranges,
-                    );
+                    syntax_ranges.push((start..end, highlight_style(highlight, palette)));
                 }
             }
             Err(_) => return,
         }
     }
 
-    if ranges.is_empty() {
+    if syntax_ranges.is_empty() {
         return;
     }
-    apply_ranges_to_text(text, &ranges);
+
+    *text = rebuild(&buf, &syntax_ranges, &line_breaks);
 }
 
-fn make_source_for_parser(text: &StyledText) -> (String, Vec<usize>, Vec<usize>, Vec<usize>) {
-    let mut source = String::with_capacity(text.chars.len() + text.num_lines().saturating_sub(1));
-    let mut source_line_starts = Vec::with_capacity(text.num_lines());
-    let mut source_line_lens = Vec::with_capacity(text.num_lines());
-    let mut text_line_starts = Vec::with_capacity(text.num_lines());
+// Concatenate `text` into a single-line StyledText with synthetic '\n' between original lines, recording the position of each '\n'. The '\n's are absorbed into the preceding span; their style is irrelevant since they get discarded by `rebuild`.
+fn flatten(text: &StyledText) -> (StyledText, Vec<usize>) {
+    let mut buf = StyledText::default();
+    buf.chars.reserve(text.chars.len() + text.num_lines().saturating_sub(1));
+    let mut line_breaks = Vec::with_capacity(text.num_lines().saturating_sub(1));
 
     for line_idx in 0..text.num_lines() {
-        let line = text.get_line_str(line_idx);
-        source_line_starts.push(source.len());
-        source_line_lens.push(line.len());
-        text_line_starts.push(text.get_line_char_range(line_idx).start);
-        source.push_str(line);
+        buf.import_spans(text, text.get_line(line_idx));
         if line_idx + 1 < text.num_lines() {
-            source.push('\n');
-        }
-    }
-
-    (
-        source,
-        source_line_starts,
-        source_line_lens,
-        text_line_starts,
-    )
-}
-
-fn push_text_ranges_for_source_range(
-    range: Range<usize>,
-    style: Style,
-    source_line_starts: &[usize],
-    source_line_lens: &[usize],
-    text_line_starts: &[usize],
-    out: &mut Vec<(Range<usize>, Style)>,
-) {
-    let mut pos = range.start;
-    while pos < range.end {
-        let line_idx = source_line_starts
-            .partition_point(|&start| start <= pos)
-            .saturating_sub(1);
-        if line_idx >= source_line_starts.len() {
-            break;
-        }
-
-        let source_line_start = source_line_starts[line_idx];
-        let source_line_end = source_line_start + source_line_lens[line_idx];
-        if pos < source_line_end {
-            let end = range.end.min(source_line_end);
-            out.push((
-                text_line_starts[line_idx] + (pos - source_line_start)
-                    ..text_line_starts[line_idx] + (end - source_line_start),
-                style,
-            ));
-            pos = end;
-        } else {
-            pos += 1; // Skip the synthetic '\n' between StyledText lines.
-        }
-    }
-}
-
-fn apply_ranges_to_text(text: &mut StyledText, ranges: &[(Range<usize>, Style)]) {
-    let old = mem::take(text);
-    let mut new = StyledText::default();
-    let mut range_idx = 0usize;
-
-    for line_idx in 0..old.num_lines() {
-        for span_idx in old.get_line(line_idx) {
-            let span_style = old.spans[span_idx + 1].1;
-            let mut pos = old.spans[span_idx].0;
-            let span_end = old.spans[span_idx + 1].0;
-
-            while pos < span_end {
-                while range_idx < ranges.len() && ranges[range_idx].0.end <= pos {
-                    range_idx += 1;
-                }
-
-                let (end, style) = if range_idx < ranges.len()
-                    && ranges[range_idx].0.start < span_end
-                    && ranges[range_idx].0.end > pos
-                {
-                    let range = &ranges[range_idx];
-                    if range.0.start > pos {
-                        (range.0.start.min(span_end), span_style)
-                    } else {
-                        (
-                            range.0.end.min(span_end),
-                            style_with_syntax(span_style, range.1),
-                        )
-                    }
-                } else {
-                    (span_end, span_style)
-                };
-
-                if end <= pos {
-                    break;
-                }
-                new.chars.push_str(&old.chars[pos..end]);
-                new.close_span(style);
-                pos = end;
+            line_breaks.push(buf.chars.len());
+            buf.chars.push('\n');
+            if buf.num_spans() == 0 {
+                buf.close_span(Style::default());
+            } else {
+                buf.spans.last_mut().unwrap().0 = buf.chars.len();
             }
         }
-        new.close_line();
     }
+    buf.close_line();
 
-    *text = new;
+    (buf, line_breaks)
+}
+
+// Walk `buf` once, merging the base spans with `syntax_ranges` (sorted, non-overlapping, indexed in `buf.chars`) and splitting at `line_breaks`, dropping the '\n' bytes.
+fn rebuild(
+    buf: &StyledText,
+    syntax_ranges: &[(Range<usize>, Style)],
+    line_breaks: &[usize],
+) -> StyledText {
+    let mut out = StyledText::default();
+    out.chars.reserve(buf.chars.len() - line_breaks.len());
+    let total = buf.chars.len();
+    let mut pos = 0usize;
+    let mut i_span = 1usize;
+    let mut i_range = 0usize;
+    let mut i_break = 0usize;
+
+    while pos < total {
+        if i_break < line_breaks.len() && line_breaks[i_break] == pos {
+            out.close_line();
+            pos += 1;
+            i_break += 1;
+            continue;
+        }
+
+        while i_range < syntax_ranges.len() && syntax_ranges[i_range].0.end <= pos {
+            i_range += 1;
+        }
+        while buf.spans[i_span].0 <= pos {
+            i_span += 1;
+        }
+
+        let base_style = buf.spans[i_span].1;
+        let mut end = buf.spans[i_span].0;
+        let mut style = base_style;
+
+        if i_break < line_breaks.len() {
+            end = end.min(line_breaks[i_break]);
+        }
+        if i_range < syntax_ranges.len() {
+            let r = &syntax_ranges[i_range];
+            if r.0.start <= pos {
+                end = end.min(r.0.end);
+                style = style_with_syntax(base_style, r.1);
+            } else {
+                end = end.min(r.0.start);
+            }
+        }
+
+        out.chars.push_str(&buf.chars[pos..end]);
+        out.close_span(style);
+        pos = end;
+    }
+    out.close_line();
+
+    out
 }
 
 #[cfg(test)]
