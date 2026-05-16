@@ -47,6 +47,13 @@ rustc-demangle = "^0.1"
 ureq = "^3.3"
 voracious_radix_sort = "^1.2"
 vt100 = "^0.16" # terminal emulator for the console window
+# syntax coloring in the code window
+tree-sitter = "0.26.8"
+tree-sitter-highlight = "0.26.8"
+tree-sitter-rust = "0.24.2"
+tree-sitter-c = "0.24.2"
+tree-sitter-cpp = "0.23.4"
+tree-sitter-zig = "1.1.2"
 
 # musl's default allocator is very slow with many threads because of mutex contention.
 [target.'cfg(target_env = "musl")'.dependencies]

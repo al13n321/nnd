@@ -375,6 +375,7 @@ Additional flags:
   --verbose   - print more info to ~/.nnd/<session-name>/log
   --num-threads <n>   - how many threads to use for things like loading debug info; default is the number of cpu cores (or hyperthreads) minus one
   --aslr   - do not disable address space layout randomization
+  --no-syntax-highlight   - disable source code syntax highlighting
   --version   - print version number and build time
 
 When debugging a large executable (a few GB):

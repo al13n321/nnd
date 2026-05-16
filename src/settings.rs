@@ -45,6 +45,8 @@ pub struct Settings {
     pub trace_logging: bool, // verbose logging, e.g. log every signal passed-through to the process
 
     pub initial_breakpoints: Vec<LineBreakpoint>,
+
+    pub syntax_highlighting: bool,
 }
 impl Default for Settings {
     fn default() -> Self { Settings {
@@ -78,6 +80,8 @@ impl Default for Settings {
         trace_logging: false,
 
         initial_breakpoints: Vec::new(),
+
+        syntax_highlighting: true,
     } }
 }
 
@@ -188,6 +192,21 @@ pub struct Palette {
 
     pub code_statement: Style,
     pub code_inlined_site: Style,
+    pub code_keyword: Style,
+    pub code_type: Style,
+    pub code_function: Style,
+    pub code_string: Style,
+    pub code_escape: Style,
+    pub code_number: Style,
+    pub code_comment: Style,
+    pub code_constant: Style,
+    pub code_variable: Style,
+    pub code_parameter: Style,
+    pub code_property: Style,
+    pub code_module: Style,
+    pub code_attribute: Style,
+    pub code_operator: Style,
+    pub code_punctuation: Style,
     pub code_instruction_pointer_column: StyleAdjustment,
     pub search_result: StyleAdjustment,
     pub instruction_pointer: Style,
@@ -303,6 +322,21 @@ impl Default for Palette {
 
             code_statement: Style {fg: white, bg: dark_gray, ..D!()},
             code_inlined_site: Style {fg: white, bg: light_blue, ..D!()},
+            code_keyword: Style {fg: Color::Rgb(0xff, 0x80, 0xd0), modifier: Modifier::BOLD, ..D!()},
+            code_type: Style {fg: Color::Rgb(0x7a, 0xd7, 0xff), ..D!()},
+            code_function: Style {fg: Color::Rgb(0x55, 0xff, 0xaa), ..D!()},
+            code_string: Style {fg: Color::Rgb(0xff, 0xd7, 0x5f), ..D!()},
+            code_escape: Style {fg: Color::Rgb(0xff, 0xaa, 0x55), modifier: Modifier::BOLD, ..D!()},
+            code_number: Style {fg: cyan, ..D!()},
+            code_comment: Style {fg: Color::Rgb(0x88, 0x88, 0x88), ..D!()},
+            code_constant: Style {fg: Color::Rgb(0xff, 0xaa, 0x55), ..D!()},
+            code_variable: Style {fg: white, ..D!()},
+            code_parameter: Style {fg: light_green, ..D!()},
+            code_property: Style {fg: green, ..D!()},
+            code_module: Style {fg: cyan, ..D!()},
+            code_attribute: Style {fg: Color::Rgb(0xdd, 0xaa, 0xff), ..D!()},
+            code_operator: Style {fg: Color::Rgb(0xff, 0x80, 0xd0), ..D!()},
+            code_punctuation: Style {fg: white.darker(), ..D!()},
             code_instruction_pointer_column: StyleAdjustment {add_bg: (0, 100, 0), add_fg: (-600, -600, -600), add_modifier: Modifier::UNDERLINED, ..D!()},
             search_result: StyleAdjustment {add_bg: (100, 100, 0), add_fg: (100, 100, 100), ..D!()},
             instruction_pointer: Style {fg: green, modifier: Modifier::BOLD, ..D!()},
