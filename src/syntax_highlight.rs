@@ -4,6 +4,10 @@ use std::{mem, ops::Range, path::Path, sync::LazyLock};
 use tree_sitter::Language;
 use tree_sitter_highlight::{Highlight, HighlightConfiguration, HighlightEvent, Highlighter};
 
+mod tree_sitter_grammars {
+    include!(concat!(env!("OUT_DIR"), "/tree_sitter_grammars.rs"));
+}
+
 // Capture names recognized by the tree-sitter highlights queries. Order is the contract with tree_sitter_highlight: `HighlightConfiguration::configure` assigns `Highlight(n)` to the n-th name we pass it, so this enum's discriminants and the `HIGHLIGHT_NAMES` array below must stay in lockstep — handled by deriving the array from `HighlightKind::name()`.
 #[repr(usize)]
 #[derive(Copy, Clone)]
@@ -100,44 +104,44 @@ const HIGHLIGHT_NAMES: [&str; HighlightKind::COUNT] = {
 
 static RUST_CONFIG: LazyLock<Option<HighlightConfiguration>> = LazyLock::new(|| {
     make_config(
-        tree_sitter_rust::LANGUAGE.into(),
+        tree_sitter_grammars::rust_language(),
         "rust",
-        tree_sitter_rust::HIGHLIGHTS_QUERY,
-        tree_sitter_rust::INJECTIONS_QUERY,
+        tree_sitter_grammars::RUST_HIGHLIGHTS_QUERY,
+        tree_sitter_grammars::RUST_INJECTIONS_QUERY,
     )
 });
 static C_CONFIG: LazyLock<Option<HighlightConfiguration>> = LazyLock::new(|| {
     make_config(
-        tree_sitter_c::LANGUAGE.into(),
+        tree_sitter_grammars::c_language(),
         "c",
-        tree_sitter_c::HIGHLIGHT_QUERY,
+        tree_sitter_grammars::C_HIGHLIGHTS_QUERY,
         "",
     )
 });
 static CPP_CONFIG: LazyLock<Option<HighlightConfiguration>> = LazyLock::new(|| {
     // tree-sitter-cpp's highlights query only adds C++-specific captures and assumes the C query is also active (this is what nvim-treesitter wires up via the grammar's `inherits: c` directive). tree-sitter-highlight doesn't honor that on its own, so concatenate them ourselves.
-    let combined = format!("{}\n{}", tree_sitter_c::HIGHLIGHT_QUERY, tree_sitter_cpp::HIGHLIGHT_QUERY);
+    let combined = format!("{}\n{}", tree_sitter_grammars::C_HIGHLIGHTS_QUERY, tree_sitter_grammars::CPP_HIGHLIGHTS_QUERY);
     make_config(
-        tree_sitter_cpp::LANGUAGE.into(),
+        tree_sitter_grammars::cpp_language(),
         "cpp",
         &combined,
-        "",
+        tree_sitter_grammars::CPP_INJECTIONS_QUERY,
     )
 });
 static ZIG_CONFIG: LazyLock<Option<HighlightConfiguration>> = LazyLock::new(|| {
     make_config(
-        tree_sitter_zig::LANGUAGE.into(),
+        tree_sitter_grammars::zig_language(),
         "zig",
-        tree_sitter_zig::HIGHLIGHTS_QUERY,
-        tree_sitter_zig::INJECTIONS_QUERY,
+        tree_sitter_grammars::ZIG_HIGHLIGHTS_QUERY,
+        tree_sitter_grammars::ZIG_INJECTIONS_QUERY,
     )
 });
 static ODIN_CONFIG: LazyLock<Option<HighlightConfiguration>> = LazyLock::new(|| {
     make_config(
-        tree_sitter_odin::LANGUAGE.into(),
+        tree_sitter_grammars::odin_language(),
         "odin",
-        tree_sitter_odin::HIGHLIGHTS_QUERY,
-        tree_sitter_odin::INJECTIONS_QUERY,
+        tree_sitter_grammars::ODIN_HIGHLIGHTS_QUERY,
+        tree_sitter_grammars::ODIN_INJECTIONS_QUERY,
     )
 });
 

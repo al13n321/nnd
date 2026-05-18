@@ -50,11 +50,7 @@ vt100 = "^0.16" # terminal emulator for the console window
 # syntax coloring in the code window
 tree-sitter = "0.26.8"
 tree-sitter-highlight = "0.26.8"
-tree-sitter-rust = "0.24.2"
-tree-sitter-c = "0.24.2"
-tree-sitter-cpp = "0.23.4"
-tree-sitter-zig = "1.1.2"
-tree-sitter-odin = "1.3.0"
+tree-sitter-language = "0.1.7"
 
 # musl's default allocator is very slow with many threads because of mutex contention.
 [target.'cfg(target_env = "musl")'.dependencies]
@@ -63,3 +59,14 @@ tikv-jemallocator = "^0.6"
 
 [dev-dependencies]
 gimli = {version = "^0.31.1", default-features = false, features = ["std", "read", "write"]}
+
+[build-dependencies]
+cc = "1.1"
+flate2 = "^1.0.26"
+# build.rs uses these crates' generated parser/query sources, then compresses the large parser tables
+# instead of linking the crates' uncompressed static tables into nnd.
+tree-sitter-rust = "0.24.2"
+tree-sitter-c = "0.24.2"
+tree-sitter-cpp = "0.23.4"
+tree-sitter-zig = "1.1.2"
+tree-sitter-odin = "1.3.0"

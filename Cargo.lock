@@ -217,6 +217,7 @@ name = "nnd"
 version = "0.77.0"
 dependencies = [
  "bitflags",
+ "cc",
  "cpp_demangle",
  "crc32fast",
  "flate2",
@@ -231,6 +232,7 @@ dependencies = [
  "tree-sitter-c",
  "tree-sitter-cpp",
  "tree-sitter-highlight",
+ "tree-sitter-language",
  "tree-sitter-odin",
  "tree-sitter-rust",
  "tree-sitter-zig",
