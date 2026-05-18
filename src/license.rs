@@ -8,7 +8,7 @@ It uses open source libraries under various licenses.
 
 Overview:
  * Apache License 2.0 (50)
- * MIT License (14)
+ * MIT License (15)
  * ISC License (3)
  * BSD 3-Clause "New" or "Revised" License (1)
  * Community Data License Agreement Permissive 2.0 (1)
@@ -444,7 +444,7 @@ Used by:
 ======================== Apache License 2.0 ========================
 
 Used by:
- * nnd 0.76.0
+ * nnd 0.77.0
    https://github.com/al13n321/nnd
  * ureq 3.3.0
    https://github.com/algesten/ureq
@@ -2744,6 +2744,8 @@ Used by:
    https://github.com/icedland/iced
  * tree-sitter-cpp 0.23.4
    https://github.com/tree-sitter/tree-sitter-cpp
+ * tree-sitter-odin 1.3.0
+   https://github.com/tree-sitter-grammars/tree-sitter-odin
  * tree-sitter-zig 1.1.2
    https://github.com/tree-sitter-grammars/tree-sitter-zig
 
