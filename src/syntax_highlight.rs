@@ -356,6 +356,7 @@ mod tests {
             ("main.c", "int main(void) { return 1; }"),
             ("main.cpp", "class Thing { public: int value; };"),
             ("main.zig", "const x: i32 = 1;"),
+            ("main.odin", "package main\nmain :: proc() {}"),
         ] {
             let mut text = StyledText::default();
             text.chars.push_str(source);
