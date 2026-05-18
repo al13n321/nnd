@@ -132,6 +132,14 @@ static ZIG_CONFIG: LazyLock<Option<HighlightConfiguration>> = LazyLock::new(|| {
         tree_sitter_zig::INJECTIONS_QUERY,
     )
 });
+static ODIN_CONFIG: LazyLock<Option<HighlightConfiguration>> = LazyLock::new(|| {
+    make_config(
+        tree_sitter_odin::LANGUAGE.into(),
+        "odin",
+        tree_sitter_odin::HIGHLIGHTS_QUERY,
+        tree_sitter_odin::INJECTIONS_QUERY,
+    )
+});
 
 fn make_config(
     language: Language,
@@ -152,6 +160,7 @@ fn config_for_path(path: &Path) -> Option<&'static HighlightConfiguration> {
         "c" => C_CONFIG.as_ref(),
         "cc" | "cpp" | "cxx" | "c++" | "h" | "hh" | "hpp" | "hxx" | "h++" => CPP_CONFIG.as_ref(),
         "zig" => ZIG_CONFIG.as_ref(),
+        "odin" => ODIN_CONFIG.as_ref(),
         _ => None,
     }
 }
@@ -162,6 +171,7 @@ fn config_for_injection(name: &str) -> Option<&'static HighlightConfiguration> {
         "c" => C_CONFIG.as_ref(),
         "cpp" | "c++" | "cc" | "cxx" => CPP_CONFIG.as_ref(),
         "zig" => ZIG_CONFIG.as_ref(),
+        "odin" => ODIN_CONFIG.as_ref(),
         _ => None,
     }
 }
