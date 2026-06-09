@@ -313,7 +313,7 @@ fn is_field_uninformative(mut f: &StructField) -> bool {
 //    Common in C++ for allocators (often as base class, which we consider a field).
 //  * If there's only one field, and it's a struct, inline that struct's fields as if they're this struct's fields.
 //    Very common for various wrappers in C++ and Rust.
-//  * Inline fields from base structs, as if they're this struct's fields.
+//  * Inline fields from base structs and anon struct fields, as if they're this struct's fields.
 //  * Repeat to convergence.
 // This undoes a lot of cruft in standard libraries and makes values in the watches window much more readable.
 // This is a shallow operation: it changes the set of fields, but doesn't change the types inside those fields.
@@ -357,12 +357,12 @@ fn unravel_struct(substruct: &mut Substruct) {
         };
 
         for f in &temp_fields {
-            // Inline field's fields if it's base class or the only field.
+            // Inline field's fields if it's base class or the only field or anonymous field.
             // This works correctly with Rust enums: the discriminant and all variants will be inlined and will work correctly
             // (as long as we inline only one field this way; there should be no base classes in Rust, so we're fine).
             let unwrap = temp_fields.len() == 1;
             let mut inlined = false;
-            if f.flags.contains(FieldFlags::INHERITANCE) || unwrap {
+            if f.flags.contains(FieldFlags::INHERITANCE) || f.name.is_empty() || unwrap {
                 let field_type = unsafe {&*f.type_};
                 if let Type::Struct(field_struct) = &field_type.t {
                     for mut ff in field_struct.fields().iter().cloned() {
@@ -872,10 +872,8 @@ fn recognize_slice_or_vec(substruct: &mut Substruct, val: &mut Cow<Value>, warni
         return err!(NoField, "");
     }
     optional_field(find_field(&["end_of_storage", "end_cap", "capacity", "cap"], substruct))?;
-    if let Some(mut anon) = optional_field(find_struct_field(&[""], substruct))? {
-        // libstdc++ string: {string_length, dataplus, union {local_buf, allocated_capacity}}
-        optional_field(find_int_field(&["local_buf"], &mut anon))?;
-    }
+    optional_field(find_field(&["local_buf"], substruct))?;
+    optional_field(find_field(&["allocated_capacity"], substruct))?;
     optional_field(find_field(&["mprotected"], substruct))?;
     substruct.check_all_fields_used()?;
 
@@ -1010,37 +1008,14 @@ fn recognize_libcpp_string(substruct: &mut Substruct, val: &mut Cow<Value>, stat
     substruct.check_all_fields_used()?;
 
     let mut inner_type: *const TypeInfo = ptr::null();
-    let (s_is_long_field, short_len_field);
-    // Some fields are either wrapped or not wrapped in anon struct.
-    match find_struct_field(&[""], &mut s) {
-        Ok(mut s_anon) => {
-            s_is_long_field = find_int_field(&["is_long"], &mut s_anon)?;
-            short_len_field = find_int_field(&["size"], &mut s_anon)?;
-            s_anon.check_all_fields_used()?;
-        }
-        Err(e) if e.is_no_field() => {
-            s_is_long_field = find_int_field(&["is_long"], &mut s)?;
-            short_len_field = find_int_field(&["size"], &mut s)?;
-        }
-        Err(e) => return Err(e),
-    }
+    let s_is_long_field = find_int_field(&["is_long"], &mut s)?;
+    let short_len_field = find_int_field(&["size"], &mut s)?;
     let _ = optional_field(find_field(&["padding"], &mut s))?;
     let (short_data_field, short_capacity) = find_array_field(&["data"], &mut s, &mut inner_type)?;
     s.check_all_fields_used()?;
 
-    let l_is_long_field;
-    match find_struct_field(&[""], &mut l) {
-        Ok(mut l_anon) => {
-            l_is_long_field = find_int_field(&["is_long"], &mut l_anon)?;
-            let _ = optional_field(find_int_field(&["cap"], &mut l_anon))?;
-            l_anon.check_all_fields_used()?;
-        }
-        Err(e) if e.is_no_field() => {
-            l_is_long_field = find_int_field(&["is_long"], &mut l)?;
-            let _ = optional_field(find_int_field(&["cap"], &mut l))?;
-        }
-        Err(e) => return Err(e),
-    }
+    let l_is_long_field = find_int_field(&["is_long"], &mut l)?;
+    let _ = optional_field(find_int_field(&["cap"], &mut l))?;
     let long_len_field = find_int_field(&["size"], &mut l)?;
     let long_ptr_field = find_pointer_field(&["data"], &mut l, &mut inner_type)?;
     l.check_all_fields_used()?;
@@ -1322,22 +1297,14 @@ fn recognize_libcpp_deque(substruct: &mut Substruct, val: &mut Cow<Value>, state
     let value_type = find_nested_type("value_type", unsafe {(*type_).nested_names})?;
     let mut map = find_struct_field(&["map"], substruct)?;
     let start_field = find_int_field(&["start"], substruct)?;
-    let size_field = match optional_field(find_int_field(&["size"], substruct))? {
-        Some(x) => x,
-        None => {
-            // size field is sometimes wrapped in anon struct.
-            let mut anon = find_struct_field(&[""], substruct)?;
-            find_int_field(&["size"], &mut anon)?
-        }
-    };
+    let size_field = find_int_field(&["size"], substruct)?;
     substruct.check_all_fields_used()?;
 
     let mut value_ptr_type: *const TypeInfo = ptr::null();
-    find_pointer_field(&["first"], &mut map, &mut value_ptr_type)?;
     let begin_field = find_pointer_field(&["begin"], &mut map, &mut value_ptr_type)?;
+    find_pointer_field(&["first", "front_cap"], &mut map, &mut value_ptr_type)?;
     find_pointer_field(&["end"], &mut map, &mut value_ptr_type)?;
-    optional_field(find_pointer_field(&["end_cap", "cap"], &mut map, &mut value_ptr_type))?;
-    optional_field(find_struct_field(&[""], &mut map))?;
+    optional_field(find_pointer_field(&["end_cap", "back_cap", "cap"], &mut map, &mut value_ptr_type))?;
     map.check_all_fields_used()?;
 
     match unsafe {&(*value_ptr_type).t} {
@@ -1399,8 +1366,8 @@ fn recognize_cpp_map(substruct: &mut Substruct, val: &mut Cow<Value>, state: &mu
         header.check_all_fields_used()?;
     } else {
         // libc++
-        find_int_field(&["pair3"], substruct)?; // node count
-        root_field = find_pointer_field(&["pair1"], substruct, &mut node_type)?;
+        find_int_field(&["pair3", "size"], substruct)?; // node count
+        root_field = find_pointer_field(&["pair1", "end_node"], substruct, &mut node_type)?;
         find_field(&["begin_node"], substruct)?;
 
         // The base node struct is 3 pointers + 1 byte (color) + 7 bytes of padding = 32 bytes.
@@ -1462,15 +1429,8 @@ fn recognize_cpp_map(substruct: &mut Substruct, val: &mut Cow<Value>, state: &mu
 // libstdc++: {_M_payload: {_M_empty: {}, _M_value}, _M_engaged}
 fn recognize_cpp_optional(substruct: &mut Substruct, val: &mut Cow<Value>, state: &mut EvalState, context: &mut EvalContext, prettify_again: &mut bool) -> Result<()> {
     let engaged_field = find_int_field(&["engaged"], substruct)?;
-    let mut payload_field;
-    if let Some(mut wrapper) = optional_field(find_struct_field(&[""], substruct))? {
-        optional_field(find_field(&["null_state"], &mut wrapper))?;
-        payload_field = find_field(&["val"], &mut wrapper)?;
-        payload_field.bit_offset += wrapper.bit_offset - substruct.bit_offset;
-        wrapper.check_all_fields_used()?;
-    } else {
-        payload_field = find_field(&["payload"], substruct)?;
-    }
+    optional_field(find_field(&["null_state"], substruct))?;
+    let payload_field = find_field(&["val", "payload"], substruct)?;
     substruct.check_all_fields_used()?;
 
     let engaged = val.val.bit_range(engaged_field.clone(), &mut context.memory)?;
