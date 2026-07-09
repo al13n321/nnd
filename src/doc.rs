@@ -246,7 +246,8 @@ Debugging tips:
  * No whole-file breakpoints, signal breakpoints (except for always-on stop on fatal signals).
  * Conditional breakpoints are not super fast: a few thousand evaluations per second.
  * Inside libraries that were dlopen()ed at runtime, breakpoints get disabled on program restart. Manually disable-enable the breakpoint after the dlopen() to reactivate it.
- * The 'disassembly' window can only open functions that appear in .symtab or debug info. Can't disassemble arbitrary memory, e.g. JIT-generated code or code from binaries without .symtab or debug info.
+ * The 'disassembly' window prefers functions from .symtab or debug info, but can fall back to memory disassembly. Press 'g' and enter a single raw address to open memory around that address if no function is found; unresolved stack-frame IPs can also open memory tabs automatically.
+    Explicit address ranges are not supported yet.
  * The debugger gets noticeably slow when the program has > 1K threads, and unusably slow with 20K threads. Part of it is inevitable syscalls
    (to start/stop all n threads we have to do n*const syscalls, then wait for n notifications - that takes a while), but there's a lot of room for improvement anyway
    (reduce the const, do the syscalls in parallel, avoid the remaining O(n^2) work on our side).

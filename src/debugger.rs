@@ -1311,11 +1311,79 @@ impl Debugger {
         Ok(())
     }
 
-    fn make_instruction_decoder<'a>(&self, range: Range<usize>, buf: &'a mut Vec<u8>) -> Result<iced_x86::Decoder<'a>> {
+    pub fn read_code_range(&self, range: Range<usize>) -> Result<(Range<usize>, Vec<u8>)> {
+        if range.len() > 100_000_000 { return err!(Sanity, "{} MB code range, suspiciously long", range.len() / 1_000_000); }
+        let map = match self.info.maps.addr_to_map(range.start) {
+            Some(x) => x,
+            None => return err!(ProcessState, "address not mapped: 0x{:x}", range.start),
+        };
+        let end = range.end.min(map.start.saturating_add(map.len));
+        if end <= range.start {
+            return err!(ProcessState, "empty memory range at 0x{:x}", range.start);
+        }
+
+        let range = range.start..end;
+        let mut buf = Vec::new();
+        self.read_code_range_into(range.clone(), &mut buf)?;
+
+        Ok((range, buf))
+    }
+
+    pub fn find_readable_code_range_around_addr(&self, addr: usize, before: usize, after: usize) -> Result<Range<usize>> {
+        let map = match self.info.maps.addr_to_map(addr) {
+            Some(x) => x,
+            None => return err!(ProcessState, "address not mapped: 0x{:x}", addr),
+        };
+        let map_end = map.start.saturating_add(map.len);
+        let start = addr.saturating_sub(before).max(map.start);
+        let end = addr.saturating_add(after).min(map_end);
+        if end <= start || addr >= end {
+            return err!(ProcessState, "empty memory range around 0x{:x}", addr);
+        }
+        if end - start > 100_000_000 { return err!(Sanity, "{} MB code range, suspiciously long", (end - start) / 1_000_000); }
+
+        let page_size = sysconf_PAGE_SIZE();
+        let required_page_start = (addr / page_size) * page_size;
+        let required_start = required_page_start.max(start);
+        let required_end = required_page_start.saturating_add(page_size).min(end);
+        let mut required = vec![0; required_end - required_start];
+        self.memory.read(required_start, &mut required)?;
+
+        let mut cur = required_start;
+        while cur > start {
+            let block_start = cur.saturating_sub(page_size).max(start);
+            let mut buf = vec![0; cur - block_start];
+            if self.memory.read(block_start, &mut buf).is_err() {
+                break;
+            }
+            cur = block_start;
+        }
+        let actual_start = cur;
+
+        cur = required_end;
+        while cur < end {
+            let block_end = cur.saturating_add(page_size).min(end);
+            let mut buf = vec![0; block_end - cur];
+            if self.memory.read(cur, &mut buf).is_err() {
+                break;
+            }
+            cur = block_end;
+        }
+        let actual_end = cur;
+
+        Ok(actual_start..actual_end)
+    }
+
+    fn read_code_range_into(&self, range: Range<usize>, buf: &mut Vec<u8>) -> Result<()> {
         if range.len() > 100_000_000 { return err!(Sanity, "{} MB code range, suspiciously long", range.len() / 1_000_000); }
         buf.resize(range.len(), 0);
         self.memory.read(range.start, buf)?;
 
+        self.fixup_code_range_bytes(range, buf);
+        Ok(())
+    }
+
+    fn fixup_code_range_bytes(&self, range: Range<usize>, buf: &mut [u8]) {
         // Fix up the INT3 breakpoint instructions. (We could read the code from the binary instead of memory to avoid
         // having to do this, but then stepping wouldn't work for code generated at runtime, not even single-instruction-step.)
         let mut i = self.breakpoint_locations.partition_point(|b| b.addr < range.start);
@@ -1326,6 +1394,10 @@ impl Debugger {
                 buf[b.addr - range.start] = b.original_byte;
             }
         }
+    }
+
+    fn make_instruction_decoder<'a>(&self, range: Range<usize>, buf: &'a mut Vec<u8>) -> Result<iced_x86::Decoder<'a>> {
+        self.read_code_range_into(range.clone(), buf)?;
         Ok(iced_x86::Decoder::with_ip(64, buf, range.start as u64, 0))
     }
 
@@ -2778,7 +2850,11 @@ impl Debugger {
         let step = self.stepping.as_mut().unwrap();
         let cfa = Self::get_cfa_for_step(&self.info, &self.symbols, &mut self.log, &self.memory, addr, regs);
         let cfa = match cfa {
-            None => return step.internal_kind == StepKind::Into,
+            None if step.internal_kind == StepKind::Into => {
+                step.stack_digest.clear();
+                return true;
+            }
+            None => return false,
             Some(c) => c };
         let (cfa_done, ranges_done) = match step.internal_kind {
             StepKind::Into => (cfa != step.cfa, !in_ranges),

@@ -170,8 +170,16 @@ impl<'a> SymbolResolver for Resolver<'a> {
     }
 }
 
-pub fn disassemble_function(function_idx: usize, mut static_addr_ranges: Vec<Range<usize>>, symbols: Option<&Symbols>, code: Option<&[u8]>, intro: StyledText, palette: &Palette) -> Disassembly {
-    clean_up_ranges(&mut static_addr_ranges);
+pub fn disassemble_function(function_idx: usize, static_addr_ranges: Vec<Range<usize>>, symbols: &Symbols, intro: StyledText, palette: &Palette) -> Disassembly {
+    disassemble_addr_ranges(Some((function_idx, symbols)), static_addr_ranges, None, intro, palette)
+}
+
+pub fn disassemble_memory(range: Range<usize>, code: &[u8], intro: StyledText, palette: &Palette) -> Disassembly {
+    disassemble_addr_ranges(None, vec![range], Some(code), intro, palette)
+}
+
+fn disassemble_addr_ranges(function: Option<(usize, &Symbols)>, mut addr_ranges: Vec<Range<usize>>, memory_code: Option<&[u8]>, intro: StyledText, palette: &Palette) -> Disassembly {
+    clean_up_ranges(&mut addr_ranges);
 
     let mut res = Disassembly {text: intro, lines: Vec::new(), error: None, max_abs_relative_addr: 0, indent_width: str_width(&palette.tree_indent.0), widest_line: 0, symbols_shard: None};
     let mut subfunc_idxs: Vec<Range<usize>> = Vec::new();
@@ -182,22 +190,22 @@ pub fn disassemble_function(function_idx: usize, mut static_addr_ranges: Vec<Ran
         res.lines.push(DisassemblyLineInfo {kind: DisassemblyLineKind::Intro, static_addr: 0, ..Default::default()});
     }
 
-    if let Some(symbols) = &symbols {
+    if let Some((function_idx, symbols)) = function {
         let function = &symbols.functions[function_idx];
         res.symbols_shard = Some(function.shard_idx());
         subfunc_idxs = (1..function.num_levels()).map(|i| symbols.subfunction_idxs_at_level(i, function)).collect();
         subfunctions = &symbols.shards[function.shard_idx()].subfunctions;
     }
 
-    for (addr_range_idx, static_addr_range) in static_addr_ranges.iter().enumerate() {
+    for (addr_range_idx, static_addr_range) in addr_ranges.iter().enumerate() {
         if static_addr_range.len() > 100_000_000 {
             return res.with_error(error!(Sanity, "{} MB to disassemble, suspiciously much", static_addr_range.len() / 1_000_000), palette);
         }
 
-        let code: &[u8] = if let Some(code) = code.clone() {
-            assert_eq!(static_addr_ranges.len(), 1);
+        let code: &[u8] = if let Some(code) = memory_code {
+            assert_eq!(addr_ranges.len(), 1);
             code
-        } else if let Some(symbols) = &symbols {
+        } else if let Some((_, symbols)) = function {
             // Read the machine code from file rather than memory so that it doesn't show our breakpoint instructions.
             match symbols.elves[0].addr_range_to_offset_range(static_addr_range.start, static_addr_range.end) {
                 None => return res.with_error(error!(Dwarf, "function address range out of bounds of executable: {:x}-{:x}", static_addr_range.start, static_addr_range.end), palette),
@@ -213,7 +221,7 @@ pub fn disassemble_function(function_idx: usize, mut static_addr_ranges: Vec<Ran
             res.lines.push(DisassemblyLineInfo {kind: DisassemblyLineKind::Separator, static_addr: static_addr_range.start, ..Default::default()});
         }
 
-        let resolver = Resolver {symbols: symbols.clone(), current_function: static_addr_range.clone()};
+        let resolver = Resolver {symbols: function.map(|(_, symbols)| symbols), current_function: static_addr_range.clone()};
         // NasmFormatter wants to own the symbol resolver for some reason. (Probably it would be too inconvenient or inefficient to have lifetime argument all throughout the formatter implementation.)
         // We trust that the SymbolResolver reference isn't retained after the formatter is destroyed, so it should be ok to fudge the lifetime here.
         let resolver: Resolver<'static> = unsafe { std::mem::transmute(resolver) };
@@ -221,7 +229,7 @@ pub fn disassemble_function(function_idx: usize, mut static_addr_ranges: Vec<Ran
         let mut decoder = Decoder::with_ip(64, code, static_addr_range.start as u64, DecoderOptions::NONE);
         let mut formatter = NasmFormatter::with_options(Some(Box::new(resolver)), None);
 
-        let mut line_iter = if let Some(symbols) = &symbols {
+        let mut line_iter = if let Some((_, symbols)) = function {
             let mut line_iter = symbols.addr_to_line_iter(static_addr_range.start).peekable();
             line_iter.next_if(|line| line.addr() < static_addr_range.start);
             Some(line_iter)
@@ -244,7 +252,7 @@ pub fn disassemble_function(function_idx: usize, mut static_addr_ranges: Vec<Ran
             let mut cur_subfunction: Option<usize> = None;
             let mut is_statement = false;
 
-            if let &Some(symbols) = &symbols {
+            if let Some((function_idx, symbols)) = function {
                 let write_line_number = |line: LineInfo, kind: DisassemblyLineKind, res: &mut Disassembly, subfunction_level: u16, leaf_line: &mut Option<LineInfo>, subfunction: Option<usize>| {
                     let file = match line.file_idx() {
                         None => return,
@@ -340,6 +348,104 @@ pub fn disassemble_function(function_idx: usize, mut static_addr_ranges: Vec<Ran
     res.finish()
 }
 
+/// Finds a unique candidate instruction stream at or before `ip`.
+/// `ip` is assumed to be a real instruction pointer, so candidates are kept only
+/// if decoding from them reaches `ip` as an instruction start.
+///
+/// This probes candidate stream starts near `probe_start`, up to one maximum x86
+/// instruction length away. `probe_len` bounds the accepted probe window, but the
+/// caller is expected to advance `probe_start` when it wants to test later starts.
+pub fn find_unique_instruction_start_before_ip(code: &[u8], range_start: usize, probe_start: usize, probe_len: usize, ip: usize) -> Option<usize> {
+    let range_end = range_start.saturating_add(code.len());
+    if probe_start < range_start || probe_start >= range_end || ip < probe_start || ip >= range_end || probe_len == 0 {
+        return None;
+    }
+    let last_probe_start = probe_start.saturating_add(probe_len).min(range_end - 1);
+    let last_start = ip.min(last_probe_start);
+    if last_start < probe_start {
+        return None;
+    }
+
+    let mut found = None;
+    let initial_last_start = probe_start.saturating_add(MAX_X86_INSTRUCTION_BYTES - 1).min(last_start);
+    for start in probe_start..=initial_last_start {
+        let mut decoder = Decoder::with_ip(64, &code[start - range_start..], start as u64, DecoderOptions::NONE);
+        while decoder.can_decode() {
+            let instruction = decoder.decode();
+            if instruction.is_invalid() || instruction.len() == 0 {
+                break;
+            }
+            let instruction_start = instruction.ip() as usize;
+            if instruction_start == ip {
+                if found.is_some() {
+                    return None;
+                }
+                found = Some(start);
+                break;
+            }
+            if instruction_start > ip {
+                break;
+            }
+        }
+    }
+    found
+}
+
+pub fn find_best_instruction_start_before_addr(code: &[u8], range_start: usize, probe_start: usize, probe_len: usize, addr: usize, ip_anchor: Option<usize>) -> Option<usize> {
+    let range_end = range_start.saturating_add(code.len());
+    if probe_start < range_start || probe_start >= range_end || addr < probe_start || addr >= range_end {
+        return None;
+    }
+    let ip_anchor = ip_anchor.filter(|ip| range_start <= *ip && *ip < range_end);
+    if probe_len == 0 {
+        return None;
+    }
+    let last_probe_start = probe_start.saturating_add(probe_len).min(range_end - 1);
+
+    let first_start = addr.saturating_sub(MAX_X86_INSTRUCTION_BYTES - 1).max(probe_start);
+    let last_start = addr.min(last_probe_start);
+    if first_start > last_start {
+        return None;
+    }
+    let mut best: Option<(usize, usize)> = None; // (decoded_until, instruction_start)
+
+    for start in first_start..=last_start {
+        let mut decoder = Decoder::with_ip(64, &code[start - range_start..], start as u64, DecoderOptions::NONE);
+        let instruction = decoder.decode();
+        if instruction.is_invalid() || instruction.len() == 0 {
+            continue;
+        }
+        let instruction_start = instruction.ip() as usize;
+        let instruction_end = instruction_start.saturating_add(instruction.len());
+        if instruction_start <= addr && addr < instruction_end {
+            let mut decoded_until = instruction_end;
+            let mut saw_ip_anchor = ip_anchor.map_or(true, |ip| instruction_start == ip);
+            while decoder.can_decode() && decoded_until < range_end {
+                let instruction = decoder.decode();
+                if instruction.is_invalid() || instruction.len() == 0 {
+                    break;
+                }
+                if ip_anchor == Some(instruction.ip() as usize) {
+                    saw_ip_anchor = true;
+                }
+                decoded_until = instruction.ip().saturating_add(instruction.len() as u64) as usize;
+            }
+            // If we know nearby RIP, use it as a hard instruction-boundary anchor: real execution
+            // can only stop at instruction starts, which disambiguates many valid-but-wrong x86 decodes.
+            if !saw_ip_anchor {
+                continue;
+            }
+
+            // Prefer the stream that remains valid the longest; if alternatives converge equally far,
+            // use the earliest start so manual `g` can recover from landing inside a real instruction.
+            if best.map_or(true, |(best_until, best_start)| decoded_until > best_until || decoded_until == best_until && instruction_start < best_start) {
+                best = Some((decoded_until, instruction_start));
+            }
+        }
+    }
+    best.map(|(_, instruction_start)| instruction_start)
+}
+
 fn clean_up_ranges(ranges: &mut Vec<Range<usize>>) {
     if ranges.is_empty() {
         return;
@@ -359,4 +465,278 @@ fn clean_up_ranges(ranges: &mut Vec<Range<usize>>) {
         }
     }
     ranges.truncate(j+1);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const BASE: usize = 0x1000;
+
+    struct UniqueStartCase {
+        name: &'static str,
+        code: &'static [u8],
+        range_start: usize,
+        probe_start: usize,
+        probe_len: usize,
+        ip: usize,
+        expected: Option<usize>,
+    }
+
+    struct BestStartCase {
+        name: &'static str,
+        code: &'static [u8],
+        range_start: usize,
+        probe_start: usize,
+        probe_len: usize,
+        addr: usize,
+        ip_anchor: Option<usize>,
+        expected: Option<usize>,
+    }
+
+    const UNIQUE_RET: &[u8] = &[0x0f, 0x0f, 0x0f, 0x0f, 0xc3];
+    const LONG_NOP_THEN_RET: &[u8] = &[
+        // 14 operand-size prefixes + nop: every suffix ending at 0x90 is also a viable instruction.
+        0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66,
+        0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x90,
+        0xc3,
+    ];
+    const JIT_HELLO_PREFIX: &[u8] = &[
+        0xb8, 0x01, 0x00, 0x00, 0x00,             // mov eax, 1
+        0xbf, 0x01, 0x00, 0x00, 0x00,             // mov edi, 1
+        0x48, 0x8d, 0x35, 0x08, 0x00, 0x00, 0x00, // lea rsi, [rip+8]
+        0xba, 0x0c, 0x00, 0x00, 0x00,             // mov edx, 12
+        0x0f, 0x05,                               // syscall
+        0xc3,                                     // ret
+    ];
+
+    #[test]
+    fn find_unique_instruction_start_before_ip_cases() {
+        let cases = [
+            UniqueStartCase {
+                name: "address_at_probe_start",
+                code: JIT_HELLO_PREFIX,
+                range_start: BASE,
+                probe_start: BASE,
+                probe_len: JIT_HELLO_PREFIX.len(),
+                ip: BASE,
+                expected: Some(BASE),
+            },
+            UniqueStartCase {
+                name: "unique_anchored_stream",
+                code: &[
+                    0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f,
+                    0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f,
+                    0xc3, 0xc3, 0xc3, 0xc3, 0xc3, 0xc3, 0xc3,
+                ],
+                range_start: BASE,
+                probe_start: BASE,
+                probe_len: 21,
+                ip: BASE + 20,
+                expected: Some(BASE + 14),
+            },
+            UniqueStartCase {
+                name: "does_not_scan_whole_probe_window",
+                code: &[
+                    0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+                    0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+                    0x0f, 0x05, 0xc3,
+                ],
+                range_start: BASE,
+                probe_start: BASE,
+                probe_len: 19,
+                ip: BASE + 18,
+                expected: None,
+            },
+            UniqueStartCase {
+                name: "single_byte_instruction_stream_is_ambiguous",
+                code: &[0x90, 0x90, 0x90, 0x90, 0xc3],
+                range_start: BASE,
+                probe_start: BASE,
+                probe_len: 5,
+                ip: BASE + 4,
+                expected: None,
+            },
+            UniqueStartCase {
+                name: "prefix_chain_is_ambiguous",
+                code: LONG_NOP_THEN_RET,
+                range_start: BASE,
+                probe_start: BASE,
+                probe_len: LONG_NOP_THEN_RET.len(),
+                ip: BASE + 15,
+                expected: None,
+            },
+            UniqueStartCase {
+                name: "anchor_filters_unanchored_candidate",
+                code: &[0x0f, 0x1f, 0x40, 0x00, 0xc3],
+                range_start: BASE,
+                probe_start: BASE,
+                probe_len: 5,
+                ip: BASE + 4,
+                expected: None,
+            },
+            UniqueStartCase {
+                name: "multiple_anchored_candidates_are_ambiguous",
+                code: &[0x90, 0x0f, 0x05, 0xc3],
+                range_start: BASE,
+                probe_start: BASE,
+                probe_len: 4,
+                ip: BASE + 3,
+                expected: None,
+            },
+            UniqueStartCase {
+                name: "probe_before_range",
+                code: UNIQUE_RET,
+                range_start: BASE,
+                probe_start: BASE - 1,
+                probe_len: UNIQUE_RET.len(),
+                ip: BASE + 4,
+                expected: None,
+            },
+            UniqueStartCase {
+                name: "probe_after_range",
+                code: UNIQUE_RET,
+                range_start: BASE,
+                probe_start: BASE + UNIQUE_RET.len(),
+                probe_len: 1,
+                ip: BASE + 4,
+                expected: None,
+            },
+            UniqueStartCase {
+                name: "zero_len_probe",
+                code: UNIQUE_RET,
+                range_start: BASE,
+                probe_start: BASE,
+                probe_len: 0,
+                ip: BASE + 4,
+                expected: None,
+            },
+        ];
+
+        for case in cases {
+            let found = find_unique_instruction_start_before_ip(case.code, case.range_start, case.probe_start, case.probe_len, case.ip);
+            assert_eq!(case.expected, found, "{}", case.name);
+        }
+    }
+
+    #[test]
+    fn find_best_instruction_start_before_addr_cases() {
+        let cases = [
+            BestStartCase {
+                name: "address_inside_instruction",
+                code: &[0x0f, 0x05],
+                range_start: BASE,
+                probe_start: BASE,
+                probe_len: 1,
+                addr: BASE + 1,
+                ip_anchor: None,
+                expected: Some(BASE),
+            },
+            BestStartCase {
+                name: "jit_mov_eax_one_prefers_real_stream_without_anchor",
+                code: JIT_HELLO_PREFIX,
+                range_start: BASE,
+                probe_start: BASE,
+                probe_len: JIT_HELLO_PREFIX.len(),
+                addr: BASE + 1,
+                ip_anchor: None,
+                expected: Some(BASE),
+            },
+            BestStartCase {
+                name: "jit_mov_eax_one_uses_ip_anchor",
+                code: JIT_HELLO_PREFIX,
+                range_start: BASE,
+                probe_start: BASE,
+                probe_len: JIT_HELLO_PREFIX.len(),
+                addr: BASE + 1,
+                ip_anchor: Some(BASE),
+                expected: Some(BASE),
+            },
+            BestStartCase {
+                name: "jit_mov_eax_one_rejects_wrong_ip_anchor",
+                code: JIT_HELLO_PREFIX,
+                range_start: BASE,
+                probe_start: BASE,
+                probe_len: JIT_HELLO_PREFIX.len(),
+                addr: BASE + 1,
+                ip_anchor: Some(BASE + 1),
+                expected: Some(BASE + 1),
+            },
+            BestStartCase {
+                name: "anchor_before_candidate_window_rejects_all_candidates",
+                code: &[0x90, 0x90, 0x0f, 0x05],
+                range_start: BASE,
+                probe_start: BASE,
+                probe_len: 4,
+                addr: BASE + 3,
+                ip_anchor: Some(BASE),
+                expected: None,
+            },
+            BestStartCase {
+                name: "address_at_instruction_start",
+                code: UNIQUE_RET,
+                range_start: BASE,
+                probe_start: BASE,
+                probe_len: UNIQUE_RET.len(),
+                addr: BASE + 4,
+                ip_anchor: None,
+                expected: Some(BASE + 4),
+            },
+            BestStartCase {
+                name: "address_in_following_instruction",
+                code: UNIQUE_RET,
+                range_start: BASE,
+                probe_start: BASE,
+                probe_len: UNIQUE_RET.len(),
+                addr: BASE + 4,
+                ip_anchor: None,
+                expected: Some(BASE + 4),
+            },
+            BestStartCase {
+                name: "single_byte_stream_chooses_only_containing_start",
+                code: &[0x90, 0x90, 0x90, 0x90, 0xc3],
+                range_start: BASE,
+                probe_start: BASE,
+                probe_len: 5,
+                addr: BASE + 2,
+                ip_anchor: None,
+                expected: Some(BASE + 2),
+            },
+            BestStartCase {
+                name: "prefix_chain_tie_chooses_earliest_start",
+                code: LONG_NOP_THEN_RET,
+                range_start: BASE,
+                probe_start: BASE,
+                probe_len: LONG_NOP_THEN_RET.len(),
+                addr: BASE + 14,
+                ip_anchor: None,
+                expected: Some(BASE),
+            },
+            BestStartCase {
+                name: "prefix_chain_ret_chooses_ret",
+                code: LONG_NOP_THEN_RET,
+                range_start: BASE,
+                probe_start: BASE,
+                probe_len: LONG_NOP_THEN_RET.len(),
+                addr: BASE + 15,
+                ip_anchor: None,
+                expected: Some(BASE + 15),
+            },
+            BestStartCase {
+                name: "address_after_stream",
+                code: UNIQUE_RET,
+                range_start: BASE,
+                probe_start: BASE,
+                probe_len: UNIQUE_RET.len(),
+                addr: BASE + UNIQUE_RET.len(),
+                ip_anchor: None,
+                expected: None,
+            },
+        ];
+
+        for case in cases {
+            let found = find_best_instruction_start_before_addr(case.code, case.range_start, case.probe_start, case.probe_len, case.addr, case.ip_anchor);
+            assert_eq!(case.expected, found, "{}", case.name);
+        }
+    }
 }
